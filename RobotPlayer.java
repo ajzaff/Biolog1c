@@ -31,55 +31,26 @@ import static battlecode.common.RobotType.*;
 import java.util.Random;
 
 /**
- *
+ * Encapsulates all game logic.
  */
 public class RobotPlayer {
-
-  /**
-   * A static copy of my team.
-   */
-  private static Team myTeam;
-
-  /**
-   * A static copy of the enemy team.
-   */
-  private static Team otherTeam;
-
-  /**
-   * The location of my towers.
-   */
-  private static MapLocation[] myTowers;
-
-  /**
-   * The location of enemy towers.
-   */
-  private static MapLocation[] enemyTowers;
-
-  /**
-   * The location of my HQ.
-   */
-  private static MapLocation myHQ;
-
-  /**
-   * The location of the enemy HQ.
-   */
-  private static MapLocation enemyHQ;
-
-  /**
-   * A pseudo-random number generator instance.
-   */
-  private static final Random rand = new Random();
 
   /**
    * The maximum health an HQ can sense to cause a
    * cutoff in the target-selection routine.
    */
-  private static final double HQ_AUTO_ENGAGE_CUTOFF = 24;
+  private static final double HQ_AUTO_ENGAGE_CUTOFF = HQ.attackPower;
 
   /**
-   * The tower's squared-range is constant.
+   * The minimum amount of ore on a given tile for
+   * a beaver to justify trying to mine it.
    */
-  private static final int TOWER_ATTACK_RANGE = 24;
+  private static final double BEAVER_MINING_CUTOFF = 5;
+
+  /**
+   * The beaver's cutoff for selecting a suitable target.
+   */
+  private static final double BEAVER_AUTO_ENGAGE_CUTOFF = BEAVER.attackPower;
 
   /**
    * The maximum health a tower can sense to cause a
@@ -88,180 +59,182 @@ public class RobotPlayer {
   private static final double TOWER_AUTO_ENGAGE_CUTOFF = 8;
 
   /**
-   * The cost of a beaver.
+   * The soldier's cutoff for selecting a suitable target.
    */
-  private static final int BEAVER_COST = 100;
+  private static final double SOLDIER_AUTO_ENGAGE_CUTOFF = SOLDIER.attackPower;
 
   /**
    * The minimum amount of ore on a given tile for
    * a beaver to justify trying to mine it.
    */
-  private static final double BEAVER_MINE_CUTOFF = 1;
+  private static final double MINER_MINING_CUTOFF = 20;
 
   /**
-   * The beaver's squared-range constant.
+   * The minimum supply to consider transferring some.
    */
-  private static final int BEAVER_ATTACK_RANGE = 5;
+  private static final double SUPPLY_TRANSFER_CUTOFF = 1000;
 
   /**
-   * The beaver's cutoff for selecting a suitable target.
+   * The minimum supply worth transferring.
    */
-  private static final int BEAVER_AUTO_ENGAGE_CUTOFF = 4;
+  private static final double SUPPLY_TRANSFER_QUANTUM = 500;
 
   /**
-   * The rate at which beavers decay (per round).
+   * The beaver spawn rate signal channel.
    */
-  private static final double BEAVER_DECAY_RATE = 0.01;
+  private static final int SIG_BEAVER_RATE = 0;
 
   /**
-   * The initial beaver seed population
+   * The barracks build rate signal channel.
    */
-  private static final double BEAVER_SEED_POPULATION = 0;
+  private static final int SIG_BARRACKS_RATE = 1;
 
   /**
-   * The bare minimum allowable population of beavers.
+   * The factory rate signal channel.
    */
-  private static final double BEAVER_BASE_POPULATION = 3;
+  private static final int SIG_MINE_FACTORY_RATE = 2;
 
   /**
-   * The cost of a `barracks'.
+   * The depot rate signal channel.
    */
-  private static final int BARRACKS_COST = 300;
+  private static final int SIG_DEPOT_RATE = 3;
 
   /**
-   *The barracks decay rate.
+   * The soldier rate signal channel.
    */
-  private static final double BARRACKS_DECAY_RATE = 0.01;
+  private static final int SIG_SOLDIER_RATE = 4;
 
   /**
-   * The initial barracks population
+   * The soldier rate signal channel.
    */
-  private static final double BARRACKS_SEED_POPULATION = -2;
+  private static final int SIG_BASHER_RATE = 5;
 
   /**
-   * The bare minimum allowable barracks.
+   * The miner rate signal channel.
    */
-  private static final double BARRACKS_BASE_POPULATION = 1;
+  private static final int SIG_MINER_RATE = 6;
 
   /**
-   * The cost of a `basher'.
+   * The helipad rate signal channel.
    */
-  private static final int BASHER_COST = 80;
+  private static final int SIG_HELIPAD_RATE = 7;
 
   /**
-   *The basher decay rate.
+   * The drone rate signalling channel.
    */
-  private static final double BASHER_DECAY_RATE = 0.007;
+  private static final int SIG_DRONE_RATE = 8;
 
   /**
-   * The initial basher population
+   * The aerospace lab rate signalling channel.
    */
-  private static final double BASHER_SEED_POPULATION = 0;
+  private static final int SIG_AERO_LAB_RATE = 9;
 
   /**
-   * The bare minimum allowable bashers.
+   * The launcher rate signalling channel.
    */
-  private static final double BASHER_BASE_POPULATION = 10;
+  private static final int SIG_LAUNCHER_RATE = 10;
 
   /**
-   * The cost of a `soldier'.
+   * The launcher rate signalling channel.
    */
-  private static final int SOLDIER_COST = 60;
+  private static final int SIG_HANDWASH_RATE = 11;
 
   /**
-   *The soldier decay rate.
+   * The tank factory rate signalling channel.
    */
-  private static final double SOLDIER_DECAY_RATE = 0.001;
+  private static final int SIG_TANK_FACTORY_RATE = 12;
 
   /**
-   * The initial soldier population
+   * The tank rate signalling channel.
    */
-  private static final double SOLDIER_SEED_POPULATION = 0;
+  private static final int SIG_TANK_RATE = 13;
 
   /**
-   * The bare minimum allowable soldiers.
+   * Units of this type will not be constructed -- the default initial state.
    */
-  private static final double SOLDIER_BASE_POPULATION = 10;
+  private static final int RATE_HALT = 0;
 
   /**
-   * The cost of a `miner factory'.
+   * Units of this type are constructed very slowly.
    */
-  private static final int MINER_FACTORY_COST = 500;
+  private static final int RATE_MINIMAL = 1;
 
   /**
-   *The miner factory decay rate.
+   * Units of this type are constructed slower than normal.
    */
-  private static final double MINER_FACTORY_DECAY_RATE = 0.01;
+  private static final int RATE_SLOW = 2;
 
   /**
-   * The initial miner factory population
+   * Units of this type are constructed normally.
    */
-  private static final double MINER_FACTORY_SEED_POPULATION = -1;
+  private static final int RATE_NORMAL = 3;
 
   /**
-   * The bare minimum allowable miner factories.
+   * Units of this type are constructed rapidly.
    */
-  private static final double MINER_FACTORY_BASE_POPULATION = 1;
+  private static final int RATE_RAPID = 4;
 
   /**
-   * The cost of a `miner'.
+   * Units of this type are constructed immediately.
    */
-  private static final int MINER_COST = 50;
+  private static final int RATE_IMMEDIATE = 5;
 
   /**
-   *The barracks decay rate.
+   * The swarm signal
    */
-  private static final double MINER_DECAY_RATE = 0.005;
+  private static final int SIG_SWARM = 14;
 
   /**
-   * The initial miner population
+   * All units behave normally.
    */
-  private static final double MINER_SEED_POPULATION = 0;
+  private static final int SWARM_DISABLED = 0;
 
   /**
-   * The bare minimum allowable miners.
+   * All units observe their respective rally points
    */
-  private static final double MINER_BASE_POPULATION = 5;
+  private static final int SWARM_RALLY = 1;
 
   /**
-   * The signal channel used to communicate to all beavers.
+   * All units rush the HQ.
    */
-  private static final int SIGNAL_BEAVER = 0;
+  private static final int SWARM_RUSH = 2;
 
   /**
-   * A signal flag raised by the HQ to force the building of a barracks.
+   * The channel for soldier units observing a rally.
    */
-  private static final int FLAG_FORCE_BARRACKS = 0x1;
+  private static final int SIG_RALLY_A = 15;
 
   /**
-   * Forces a beaver to build a miner factory.
+   * The channel for basher units observing a rally.
    */
-  private static final int FLAG_FORCE_MINER_FACTORY = 0x2;
+  private static final int SIG_RALLY_B = 17;
 
   /**
-   * The signal channel used to communicate to all barracks.
+   * The channel for basher units observing a rally.
    */
-  private static final int SIGNAL_BARRACKS = 1;
+  private static final int SIG_RALLY_C = 19;
 
   /**
-   * A signal flag raised by the HQ to force the spawning of bashers.
+   * The effective starting round for each "phase" of the game starting from phase 0.
    */
-  private static final int FLAG_FORCE_BASHER = 0x1;
-
-  /**
-   * A signal flag raised by the HQ to force the spawning of soldier.
-   */
-  private static final int FLAG_FORCE_SOLDIER = 0x2;
-
-  /**
-   * The signal channel used to communicate to all miner factories.
-   */
-  private static final int SIGNAL_MINER_FACTORY = 0;
-
-  /**
-   * A signal flag raised by the HQ to force the production of a miner.
-   */
-  private static final int FLAG_FORCE_MINER = 0x1;
+  private static final int[] PHASES = new int[] {
+    0,   /* phase 0: spawn a beaver and rush barracks. */
+    30,  /* phase 1: build a few soldiers & bashers, and a few beavers. */
+    80,  /* phase 2: halt all unit production to build a helipad. */
+    130,  /* phase 3: spawn a few drones and save up. */
+    220, /* phase 4: produce a miner factory, supply depots, and a miner. */
+    240, /* phase 5: calculate rally points for all units, spawn more miners. */
+    300, /* phase 6: purchase rally point barracks/helipad, depots at HQ. */
+    400, /* phase 7: construct the aerospace lab. */
+    450, /* phase 8: build launchers and target towers -- from here on out expect continuous missile attacks. */
+    720, /* phase 9: augment soldiers, bashers, and drones, at rally points. */
+    900, /* phase 10: build more depots, handwash station. */
+    1000,/* phase 11: invest in tank factory and more miners. */
+    1200,/* phase 12: spam and rally tanks. */
+    1400,/* phase 13: augment drones at rally point. */
+    1500,/* phase 14: augment bashers & soldiers. */
+    1600,/* phase 15: rush the HQ. */
+  };
 
   /**
    * A static copy of the array of directional constants.
@@ -269,38 +242,66 @@ public class RobotPlayer {
   private static final Direction[] directions = Direction.values();
 
   /**
-   * Runs the `RobotPlayer', i.e. all game logic.
-   * @param rc the robot controller instance.
+   * The robot controller instance.
    */
-  public static void run(RobotController rc) {
+  private static RobotController rc;
 
-    myTeam = rc.getTeam(); // Assign my team instance.
-    otherTeam = myTeam.opponent(); // Assign the enemy team instance.
-    myTowers = rc.senseTowerLocations(); // Sense my tower locations.
-    enemyTowers = rc.senseEnemyTowerLocations(); // Sense enemy towers.
-    myHQ = rc.senseHQLocation(); // Sense my headquarters.
-    enemyHQ = rc.senseEnemyHQLocation(); // Sense enemy headquarters.
+  /**
+   * A copy of my team.
+   */
+  private static Team myTeam;
 
+  /**
+   * A copy of the enemy team.
+   */
+  private static Team otherTeam;
 
-    double beaverPopulation = BEAVER_SEED_POPULATION; // the estimated number of beavers alive.
-    double barracksPopulation = BARRACKS_SEED_POPULATION; // the estimated number of barracks.
-    double basherPopulation = BASHER_SEED_POPULATION; // the estimated number of bashers alive.
-    double soldierPopulation = SOLDIER_SEED_POPULATION; // the estimated number of soldiers alive.
-    double minerFactoryPopulation = MINER_FACTORY_SEED_POPULATION; // the estimated number of miner factories.
-    double minerPopulation = MINER_SEED_POPULATION; // the estimated number of miners alive.
+  /**
+   * The enemy HQ location.
+   */
+  private static MapLocation myHQ;
+
+  /**
+   * The enemy HQ location.
+   */
+  private static MapLocation enemyHQ;
+
+  /**
+   * The locations of enemy towers.
+   */
+  private static MapLocation[] enemyTowers;
+
+  /**
+   * The locations of my towers.
+   */
+  private static MapLocation[] myTowers;
+
+  /**
+   * A pseudo-random number generator instance.
+   */
+  private static final Random rand = new Random();
+
+  /**
+   * Runs the `RobotPlayer', i.e. all game logic.
+   * @param controller the robot controller instance.
+   */
+  public static void run(RobotController controller) {
+
+    rc = controller; // Set the robot.
+    myTeam = rc.getTeam(); // Set my team.
+    otherTeam = myTeam.opponent(); // Set the enemy team.
+    myHQ = rc.senseHQLocation();
+    myTowers = rc.senseTowerLocations();
+    enemyHQ = rc.senseEnemyHQLocation();
+    enemyTowers = rc.senseEnemyTowerLocations();
+
+    Direction facing = null;
 
     /*
      * The method is encapsulated in a forever-loop.
      * It should run for as long as the match running.
      */
     while(true) {
-
-      beaverPopulation -= BEAVER_DECAY_RATE; // decay our beaver population.
-      barracksPopulation -= BARRACKS_DECAY_RATE; // decay the barracks population.
-      basherPopulation -= BASHER_DECAY_RATE; // decay the basher population.
-      soldierPopulation -= SOLDIER_DECAY_RATE; // decay the soldier population.
-      minerFactoryPopulation -= MINER_FACTORY_DECAY_RATE; // decay the factories.
-      minerPopulation -= MINER_DECAY_RATE; // decay the miner population.
 
       // Get the type of the active robot.
       RobotType t = rc.getType();
@@ -310,124 +311,107 @@ public class RobotPlayer {
          * The `HQ' can spawn beavers, and attack things, if needed.
          * I also use it as a central message service.
          */
+        /**
+         * Although we do not want it to come down to this,
+         * the HQ is capable of doing large amounts of damage
+         * to targets.
+         *
+         * This routine seeks out the best such target to hit, if any.
+         */
 
-        // If barracks have hit their base population, signal to build another.
-        if(barracksPopulation < BARRACKS_BASE_POPULATION) {
-          try {
-            rc.broadcast(SIGNAL_BEAVER, rc.readBroadcast(SIGNAL_BEAVER) | FLAG_FORCE_BARRACKS);
-          }
-          catch(GameActionException e) {
-            e.printStackTrace();
-          }
+        rc.setIndicatorString(0, ""+rc.hasSpawnRequirements(LAUNCHER));
+
+        transferSupply(); // sharing is caring.
+
+        int round = Clock.getRoundNum();
+        if(round == PHASES[15]) {
+          rc.setIndicatorString(0, "Phase 15");
+          safeBroadcast(SIG_SWARM, SWARM_RUSH);
+        }
+        else if(round == PHASES[14]) {
+          rc.setIndicatorString(0, "Phase 14");
+          safeBroadcast(SIG_LAUNCHER_RATE, RATE_IMMEDIATE);
+        }
+        else if(round == PHASES[13]) {
+          rc.setIndicatorString(0, "Phase 13");
+          safeBroadcast(SIG_LAUNCHER_RATE, RATE_IMMEDIATE);
+        }
+        else if(round == PHASES[12]) {
+          rc.setIndicatorString(0, "Phase 12");
+          safeBroadcast(SIG_TANK_RATE, RATE_HALT);
+          safeBroadcast(SIG_LAUNCHER_RATE, RATE_IMMEDIATE);
+        }
+        else if(round == PHASES[11]) {
+          rc.setIndicatorString(0, "Phase 11");
+          safeBroadcast(SIG_TANK_FACTORY_RATE, RATE_HALT);
+          safeBroadcast(SIG_TANK_RATE, RATE_IMMEDIATE);
+        }
+        else if(round == PHASES[10]) {
+          rc.setIndicatorString(0, "Phase 10");
+          safeBroadcast(SIG_LAUNCHER_RATE, RATE_HALT);
+          safeBroadcast(SIG_TANK_FACTORY_RATE, RATE_IMMEDIATE);
+        }
+        else if(round == PHASES[9]) {
+          rc.setIndicatorString(0, "Phase 9");
+          safeBroadcast(SIG_LAUNCHER_RATE, RATE_IMMEDIATE);
+        }
+        else if(round == PHASES[8]) {
+          rc.setIndicatorString(0, "Phase 8");
+          safeBroadcast(SIG_MINER_RATE, RATE_HALT);
+          safeBroadcast(SIG_LAUNCHER_RATE, RATE_IMMEDIATE);
+        }
+        else if(round == PHASES[7]) {
+          rc.setIndicatorString(0, "Phase 7");
+          safeBroadcast(SIG_AERO_LAB_RATE, RATE_HALT);
+          safeBroadcast(SIG_LAUNCHER_RATE,RATE_IMMEDIATE);
+        }
+        else if(round == PHASES[6]) {
+          rc.setIndicatorString(0, "Phase 6");
+          safeBroadcast(SIG_AERO_LAB_RATE,RATE_HALT);
+          safeBroadcast(SIG_MINER_RATE, RATE_RAPID);
+        }
+        else if(round == PHASES[5]) {
+          rc.setIndicatorString(0, "Phase 5");
+          safeBroadcast(SIG_MINER_RATE, RATE_HALT);
+          safeBroadcast(SIG_AERO_LAB_RATE,RATE_IMMEDIATE);
+          safeBroadcastRallyPoints();
+        }
+        else if(round == PHASES[4]) {
+          rc.setIndicatorString(0, "Phase 4");
+          safeBroadcast(SIG_MINER_RATE, RATE_RAPID);
+        }
+        else if(round == PHASES[3]) {
+          rc.setIndicatorString(0, "Phase 3");
+          safeBroadcast(SIG_MINE_FACTORY_RATE, RATE_HALT);
+          safeBroadcast(SIG_MINER_RATE, RATE_IMMEDIATE);
+        }
+        else if(round == PHASES[2]) {
+          rc.setIndicatorString(0, "Phase 2");
+          safeBroadcast(SIG_DRONE_RATE, RATE_HALT);
+          safeBroadcast(SIG_HELIPAD_RATE, RATE_HALT);
+          safeBroadcast(SIG_MINE_FACTORY_RATE, RATE_IMMEDIATE);
+        }
+        else if(round == PHASES[1]) {
+          rc.setIndicatorString(0, "Phase 1");
+          safeBroadcast(SIG_BEAVER_RATE, RATE_HALT);
+          safeBroadcast(SIG_HELIPAD_RATE, RATE_HALT);
+          safeBroadcast(SIG_DRONE_RATE, RATE_IMMEDIATE);
+        }
+        else if(round == PHASES[0]) {
+          rc.setIndicatorString(0, "Phase 0");
+          safeBroadcast(SIG_BEAVER_RATE, RATE_IMMEDIATE);
+          safeBroadcast(SIG_HELIPAD_RATE, RATE_IMMEDIATE);
         }
 
-        // If bashers have hit their base population, signal to build another.
-        if(basherPopulation < BASHER_BASE_POPULATION) {
-          try {
-            rc.broadcast(SIGNAL_BARRACKS, rc.readBroadcast(SIGNAL_BARRACKS) | FLAG_FORCE_BASHER);
-          }
-          catch(GameActionException e) {
-            e.printStackTrace();
-          }
+        if(rc.isWeaponReady() && unsafeSelectTargetAndEngage(rc.getLocation(), t.attackRadiusSquared, HQ_AUTO_ENGAGE_CUTOFF)) {
+          rc.yield();
+          continue;
         }
 
-        // If soldiers have hit their base population, signal to build another.
-        if(soldierPopulation < SOLDIER_BASE_POPULATION) {
-          try {
-            rc.broadcast(SIGNAL_BARRACKS, rc.readBroadcast(SIGNAL_BARRACKS) | FLAG_FORCE_SOLDIER);
-          }
-          catch(GameActionException e) {
-            e.printStackTrace();
-          }
-        }
-
-        // If miner factories have hit their base population, signal to build another.
-        if(minerFactoryPopulation < MINER_FACTORY_BASE_POPULATION) {
-          try {
-            rc.broadcast(SIGNAL_BEAVER, rc.readBroadcast(SIGNAL_BEAVER) | FLAG_FORCE_MINER_FACTORY);
-          }
-          catch(GameActionException e) {
-            e.printStackTrace();
-          }
-        }
-
-        // If miners have hit their base population, signal to build another.
-        if(minerPopulation < MINER_BASE_POPULATION) {
-          try {
-            rc.broadcast(SIGNAL_MINER_FACTORY, rc.readBroadcast(SIGNAL_MINER_FACTORY) | FLAG_FORCE_MINER);
-          }
-          catch(GameActionException e) {
-            e.printStackTrace();
-          }
-        }
-
-        // Test if the HQ's weapon is ready.
-        if(rc.isWeaponReady()) {
-          /**
-           * Although we do not want it to come down to this,
-           * the HQ is capable of doing large amounts of damage
-           * to targets.
-           *
-           * This routine seeks out the best such target to hit, if any.
-           */
-
-          RobotInfo[] targets = rc.senseNearbyRobots(rc.getLocation(), t.attackRadiusSquared, otherTeam);
-
-          // If no nearby enemies, yield and continue.
-          if(targets.length > 0) {
-            try {
-              RobotInfo t_info = targets[0]; // The "best target" -- let's initialize this to `target_0'.
-
-              // Loop through all enemy units
-              for (RobotInfo r : targets) {
-
-                // If the target is a missile, cause a cutoff.
-                if (r.type == MISSILE) {
-                  t_info = r;
-                  break;
-                }
-
-                // If the new target is less healthy -- update it.
-                if (r.health < t_info.health) {
-
-                  // If the health is "low enough" -- cutoff.
-                  if (r.health <= HQ_AUTO_ENGAGE_CUTOFF) {
-                    t_info = r;
-                    break;
-                  }
-
-                  t_info = r; // Update the target info variable.
-                }
-              }
-
-              rc.attackLocation(t_info.location); // Attack it!
-
-              // The turn is over
-              rc.yield();
-              continue;
-
-            } catch (GameActionException e) {
-              e.printStackTrace();
-            }
-          }
-        }
-
-        // If the HQ is ready to act.
         if(rc.isCoreReady()) {
+          int beaverRate = safeReadBroadcast(SIG_BEAVER_RATE);
 
-          // Test the beaver population -- could we use more?
-          if(beaverPopulation < BEAVER_BASE_POPULATION && rc.getTeamOre() >= BEAVER_COST) {
-            Direction d = directions[rand.nextInt(8)]; // pick a random direction.
-            if(rc.canSpawn(d, BEAVER)) { // test the spawn validity.
-              try {
-                rc.spawn(d, BEAVER); // spawn a new beaver.
-                beaverPopulation++; // increment the beaver population.
-              }
-              catch(GameActionException e) {
-                e.printStackTrace();
-              }
-            }
-          }
+          unsafeSpawn(BEAVER, beaverRate);
         }
       }
       else if(t == TOWER) {
@@ -435,60 +419,21 @@ public class RobotPlayer {
          * The `tower' is a powerful unit which attacks things.
          * It has an effective attack range of 24 units^2 (see TOWER_ATTACK_RANGE).
          */
+        /*
+         * The goal is to find a suitable enemy robot to attack.
+         * The strategy is generally, to find the robot
+         * with the minimum remaining health and attack it.
+         *
+         * To save compute time, if a target with less than a given
+         * cutoff is found, it is selected, and target search stops.
+         *
+         * Missile targets prioritized over all others.
+         */
 
-        // Test if the tower's weapon system is online.
+        transferSupply(); // sharing is caring.
+
         if(rc.isWeaponReady()) {
-
-          // Get an array of nearby robots within this towers attacking range.
-          RobotInfo[] targets = rc.senseNearbyRobots(rc.getLocation(), TOWER_ATTACK_RANGE, otherTeam);
-
-          // If no nearby enemies, yield and continue.
-          if(targets.length == 0) {
-            rc.yield();
-            continue;
-          }
-
-          /*
-           * The goal is to find a suitable enemy robot to attack.
-           * The strategy is generally, to find the robot
-           * with the minimum remaining health and attack it.
-           *
-           * To save compute time, if a target with less than a given
-           * cutoff is found, it is selected, and target search stops.
-           *
-           * Missile targets prioritized over all others.
-           */
-          try {
-
-            RobotInfo t_info = targets[0]; // The "best target" -- let's initialize this to `target_0'.
-
-            // Loop through all enemy units
-            for(RobotInfo r : targets) {
-
-              // If the target is a missile, cause a cutoff.
-              if(r.type == MISSILE) {
-                t_info = r;
-                break;
-              }
-
-              // If the new target is less healthy -- update it.
-              if(r.health < t_info.health) {
-
-                // If the health is "low enough" -- cutoff.
-                if(r.health <= TOWER_AUTO_ENGAGE_CUTOFF) {
-                  t_info = r;
-                  break;
-                }
-
-                t_info = r; // Update the target info variable.
-              }
-            }
-
-            rc.attackLocation(t_info.location); // Attack it!
-          }
-          catch(GameActionException e) {
-            e.printStackTrace();
-          }
+          unsafeSelectTargetAndEngage(rc.getLocation(), TOWER.attackRadiusSquared, TOWER_AUTO_ENGAGE_CUTOFF);
         }
       }
       else if(t == BASHER) {
@@ -496,32 +441,40 @@ public class RobotPlayer {
          * Bashers walk around and attack adjacent enemies automatically.
          */
 
-        // Test if it's ready to perform an action.
+        transferSupply(); // sharing is caring.
+
         if(rc.isCoreReady()) {
-          // Just walk randomly for now.
-          Direction d = directions[rand.nextInt(8)];
-          if(rc.canMove(d)) {
-            try {
-              rc.move(d);
-            } catch (GameActionException e) {
-              e.printStackTrace();
-            }
+          if(!unsafeSwarm(SIG_RALLY_C)) {
+            unsafeDiffuseRandomly();
           }
         }
       }
       else if(t == SOLDIER) {
         // Soldiers walk around and attack things.
+        /*
+         * The `tower' is a powerful unit which attacks things.
+         * It has an effective attack range of 24 units^2 (see TOWER_ATTACK_RANGE).
+         */
+        /*
+         * The goal is to find a suitable enemy robot to attack.
+         * The strategy is generally, to find the robot
+         * with the minimum remaining health and attack it.
+         *
+         * To save compute time, if a target with less than a given
+         * cutoff is found, it is selected, and target search stops.
+         *
+         * Missile targets prioritized over all others.
+         */
 
-        // Test if it's ready to perform an action.
+        transferSupply(); // sharing is caring.
+
+        if(rc.isWeaponReady() && unsafeSelectTargetAndEngage(rc.getLocation(), SOLDIER.attackRadiusSquared, SOLDIER_AUTO_ENGAGE_CUTOFF)) {
+          rc.yield();
+          continue;
+        }
         if(rc.isCoreReady()) {
-          // Just walk randomly for now.
-          Direction d = directions[rand.nextInt(8)];
-          if(rc.canMove(d)) {
-            try {
-              rc.move(d);
-            } catch (GameActionException e) {
-              e.printStackTrace();
-            }
+          if(!unsafeSwarm(SIG_RALLY_C)) {
+            unsafeDiffuseRandomly();
           }
         }
       }
@@ -531,131 +484,33 @@ public class RobotPlayer {
          * They also have a limited ability to mine, and attack if needed.
          */
 
-        // Test if attacking is viable
-        if(rc.isWeaponReady()) {
-          RobotInfo[] targets = rc.senseNearbyRobots(rc.getLocation(), BEAVER_ATTACK_RANGE, otherTeam);
+        transferSupply(); // sharing is caring.
 
-          // If no nearby enemies, yield and continue.
-          if(targets.length > 0) {
-            try {
-              RobotInfo t_info = targets[0]; // The "best target" -- let's initialize this to `target_0'.
-
-              // Loop through all enemy units
-              for (RobotInfo r : targets) {
-
-                // If the target is a missile, cause a cutoff.
-                if (r.type == MISSILE) {
-                  t_info = r;
-                  break;
-                }
-
-                // If the new target is less healthy -- update it.
-                if (r.health < t_info.health) {
-
-                  // If the health is "low enough" -- cutoff.
-                  if (r.health <= BEAVER_AUTO_ENGAGE_CUTOFF) {
-                    t_info = r;
-                    break;
-                  }
-
-                  t_info = r; // Update the target info variable.
-                }
-              }
-
-              rc.attackLocation(t_info.location); // Attack it!
-
-              // The turn is over.
-              rc.yield();
-              continue;
-
-            } catch (GameActionException e) {
-              e.printStackTrace();
-            }
-          }
+        if(rc.isWeaponReady() && unsafeSelectTargetAndEngage(rc.getLocation(), BEAVER.attackRadiusSquared, BEAVER_AUTO_ENGAGE_CUTOFF)) {
+          rc.yield();
+          continue;
         }
-
-        // Test if it's ready to perform an action.
         if(rc.isCoreReady()) {
+          int barracksRate = safeReadBroadcast(SIG_BARRACKS_RATE);
+          int depotRate = safeReadBroadcast(SIG_DEPOT_RATE);
+          int mineFactoryRate = safeReadBroadcast(SIG_MINE_FACTORY_RATE);
+          int helipadRate = safeReadBroadcast(SIG_HELIPAD_RATE);
+          int aeroLabRate = safeReadBroadcast(SIG_AERO_LAB_RATE);
+          int tankFactoryRate = safeReadBroadcast(SIG_TANK_FACTORY_RATE);
 
-          MapLocation myLocation = rc.getLocation(); // Get the beaver's map location.
+          if(!unsafeBuild(BARRACKS, barracksRate))
+            if(!unsafeBuild(SUPPLYDEPOT, depotRate))
+              if(!unsafeBuild(MINERFACTORY, mineFactoryRate))
+                if(!unsafeBuild(HELIPAD, helipadRate))
+                  if(!unsafeBuild(AEROSPACELAB, aeroLabRate))
+                    if(!unsafeBuild(TANKFACTORY, tankFactoryRate)) {
+                      if (chance(90) && unsafeMine(BEAVER_MINING_CUTOFF)) {
+                        rc.yield();
+                        continue;
+                      }
 
-          int signal = 0; // read the general beaver channel for any outstanding messages.
-          try {
-            signal = rc.readBroadcast(SIGNAL_BEAVER);
-          }
-          catch (GameActionException e) {
-            e.printStackTrace();
-          }
-
-          int flag = 0;
-          int cost = 0;
-          RobotType type = null;
-
-          rc.setIndicatorString(0, "" + ((BARRACKS_BASE_POPULATION-barracksPopulation)) + " > " + (MINER_FACTORY_BASE_POPULATION-minerFactoryPopulation));
-
-          boolean build = false;
-          if((BARRACKS_BASE_POPULATION-barracksPopulation) > (MINER_FACTORY_BASE_POPULATION-minerFactoryPopulation)) {
-            flag = FLAG_FORCE_BARRACKS;;
-            cost = BARRACKS_COST;
-            type = BARRACKS;
-            build = BARRACKS_BASE_POPULATION-barracksPopulation > 0;
-          }
-          else {
-            flag = FLAG_FORCE_MINER_FACTORY;
-            cost = MINER_FACTORY_COST;
-            type = MINERFACTORY;
-            build = MINER_FACTORY_BASE_POPULATION-minerFactoryPopulation > 0;
-          }
-
-          // If barracks are low -- build one.
-          if(build && (signal & flag) != 0 && rc.getTeamOre() >= cost) {
-            Direction d = directions[rand.nextInt(8)]; // get a random direction.
-            if(rc.canBuild(d, type)) { // try building in this direction.
-              try {
-                rc.build(d, type);
-                rc.broadcast(SIGNAL_BEAVER, signal ^ flag);
-
-                if(type == BARRACKS) barracksPopulation++;
-                else if(type == MINERFACTORY) minerFactoryPopulation++;
-
-                // The beaver has used up its turn.
-                rc.yield();
-                continue;
-              }
-              catch(GameActionException e) {
-                e.printStackTrace();
-              }
-            }
-          }
-
-          double oreAmount = rc.senseOre(myLocation); // Get the ore amount at my location.
-
-          // Mine if it is "worth it" to do so.
-          if(rand.nextBoolean() && oreAmount >= BEAVER_MINE_CUTOFF) {
-            try {
-              rc.mine();
-
-              // The beaver has used up its turn.
-              rc.yield();
-              continue;
-            }
-            catch(GameActionException e) {
-              e.printStackTrace();
-            }
-          }
-
-          Direction d = directions[rand.nextInt(8)];
-          if(rc.canMove(d)) {
-            try {
-              rc.move(d);
-
-              // The beaver has used up its turn.
-              rc.yield();
-              continue;
-            } catch (GameActionException e) {
-              e.printStackTrace();
-            }
-          }
+                      unsafeDiffuseRandomly();
+                    }
         }
       }
       else if(t == BARRACKS) {
@@ -663,53 +518,14 @@ public class RobotPlayer {
          * Spawn bashers and soldiers.
          */
 
-        // Test if it's ready to perform an action.
+        transferSupply(); // sharing is caring.
+
         if(rc.isCoreReady()) {
+          int soldierRate = safeReadBroadcast(SIG_SOLDIER_RATE);
+          int basherRate = safeReadBroadcast(SIG_BASHER_RATE);
 
-          int signal = 0; // read the general barracks channel for any outstanding messages.
-          try {
-            signal = rc.readBroadcast(SIGNAL_BARRACKS);
-          }
-          catch (GameActionException e) {
-            e.printStackTrace();
-          }
-
-          // If bashers are low -- spawn one.
-          if((signal & FLAG_FORCE_BASHER) != 0 && rc.getTeamOre() >= BASHER_COST) {
-            Direction d = directions[rand.nextInt(8)]; // get a random direction.
-            if(rc.canSpawn(d, BASHER)) { // try spawning in this direction.
-              try {
-                rc.spawn(d, BASHER);
-                rc.broadcast(SIGNAL_BARRACKS, signal ^ FLAG_FORCE_BASHER);
-                basherPopulation++;
-
-                // The player has used up its turn.
-                rc.yield();
-                continue;
-              }
-              catch(GameActionException e) {
-                e.printStackTrace();
-              }
-            }
-          }
-
-          // If soldiers are low -- spawn one.
-          if((signal & FLAG_FORCE_SOLDIER) != 0 && rc.getTeamOre() >= SOLDIER_COST) {
-            Direction d = directions[rand.nextInt(8)]; // get a random direction.
-            if(rc.canSpawn(d, SOLDIER)) { // try building in this direction.
-              try {
-                rc.spawn(d, SOLDIER);
-                rc.broadcast(SIGNAL_BARRACKS, signal ^ FLAG_FORCE_SOLDIER);
-                soldierPopulation++;
-
-                // The player has used up its turn.
-                rc.yield();
-                continue;
-              }
-              catch(GameActionException e) {
-                e.printStackTrace();
-              }
-            }
+          if(!unsafeSpawn(SOLDIER, soldierRate)) {
+            unsafeSpawn(BASHER, basherRate);
           }
         }
       }
@@ -718,81 +534,190 @@ public class RobotPlayer {
          * Has the sole responsibility of producing miners.
          */
 
-        // Test if it's ready to perform an action.
-        if (rc.isCoreReady()) {
+        transferSupply(); // sharing is caring.
 
-          int signal = 0; // read the general barracks channel for any outstanding messages.
-          try {
-            signal = rc.readBroadcast(SIGNAL_MINER_FACTORY);
-          } catch (GameActionException e) {
-            e.printStackTrace();
-          }
+        if(rc.isCoreReady()) {
+          int minerRate = safeReadBroadcast(SIG_MINER_RATE);
 
-          // If bashers are low -- spawn one.
-          if ((signal & FLAG_FORCE_MINER) != 0 && rc.getTeamOre() >= MINER_COST) {
-            Direction d = directions[rand.nextInt(8)]; // get a random direction.
-            if (rc.canSpawn(d, MINER)) { // try spawning in this direction.
-              try {
-                rc.spawn(d, MINER);
-                rc.broadcast(SIGNAL_MINER_FACTORY, signal ^ FLAG_FORCE_BASHER);
-                minerPopulation++;
-
-                // The player has used up its turn.
-                rc.yield();
-                continue;
-              } catch (GameActionException e) {
-                e.printStackTrace();
-              }
-            }
-          }
+          unsafeSpawn(MINER, minerRate);
         }
       }
       else if(t == MINER) {
+        /**
+         * Responsible for mining.
+         */
 
-        // Test if it's ready to perform an action.
+        transferSupply(); // sharing is caring.
+
         if(rc.isCoreReady()) {
-
-          MapLocation myLocation = rc.getLocation();
-
-          Direction d_max = directions[0];
-          double oreMax = rc.senseOre(myLocation.add(d_max));
-
-          // Sense the ore amounts at each location and go to the location.
-          for(int i=0; i < 8; i++) {
-            double ore = rc.senseOre(myLocation.add(directions[i]));
-            if(ore > oreMax) {
-              oreMax = ore;
-              d_max = directions[i];
-            }
+          if(!unsafeMine(MINER_MINING_CUTOFF)) {
+            unsafeDiffuseRandomly();
           }
+        }
+      }
+      else if(t == HELIPAD) {
+        /**
+         * Spawns drones.
+         */
 
-          // If I'd rather stay put.
-          if(rc.senseOre(myLocation) > oreMax) {
+        transferSupply(); // sharing is caring.
 
-            try {
-              rc.mine();
+        if(rc.isCoreReady()) {
+          int droneRate = safeReadBroadcast(SIG_DRONE_RATE);
+
+          unsafeSpawn(DRONE, droneRate);
+        }
+      }
+      else if(t == AEROSPACELAB) {
+        /**
+         * Spawns launchers.
+         */
+
+        transferSupply(); // sharing is caring.
+
+        if(rc.isCoreReady()) {
+          int rate = safeReadBroadcast(SIG_LAUNCHER_RATE);
+
+          unsafeSpawn(LAUNCHER, rate);
+        }
+      }
+      else if(t == TANKFACTORY) {
+        /**
+         * Spawns launchers.
+         */
+
+        transferSupply(); // sharing is caring.
+
+        if(rc.isCoreReady()) {
+          int rate = safeReadBroadcast(SIG_TANK_RATE);
+
+          unsafeSpawn(TANK, rate);
+        }
+      }
+      else if(t == TANK) {
+        /**
+         * Tanks are powerful long-range units.
+         */
+
+        transferSupply(); // sharing is caring.
+
+        if(rc.isWeaponReady() && unsafeSelectTargetAndEngage(rc.getLocation(), TANK.attackRadiusSquared, TANK.attackPower)) {
+          rc.yield();
+          continue;
+        }
+        if(rc.isCoreReady()) {
+          if(!unsafeSwarm(SIG_RALLY_A)) {
+            unsafeDiffuseRandomly();
+          }
+        }
+      }
+      else if(t == DRONE) {
+        /**
+         * Drones can fly over shit.
+         */
+
+        transferSupply(); // sharing is caring.
+
+        if(rc.isWeaponReady() && unsafeSelectTargetAndEngage(rc.getLocation(), DRONE.attackRadiusSquared, DRONE.attackPower)) {
+          rc.yield();
+          continue;
+        }
+        if(rc.isCoreReady()) {
+          if(!unsafeSwarm(SIG_RALLY_B)) {
+            unsafeDiffuseRandomly();
+          }
+        }
+      }
+      else if(t == LAUNCHER) {
+        /**
+         * Launchers stage and launch missiles but cannot themselves attack.
+         */
+
+        transferSupply(); // sharing is caring.
+
+        if(rc.isWeaponReady()) {
+
+          RobotInfo[] targets = rc.senseNearbyRobots(LAUNCHER.sensorRadiusSquared, otherTeam);
+          RobotInfo r_info = null;
+
+          if(targets.length > 0) {
+
+            for(RobotInfo r : targets) {
+
+              if(r.type == TOWER) {
+                r_info = r;
+                break;
+              }
+
+              RobotInfo[] friends = rc.senseNearbyRobots(r.location, MISSILE.attackRadiusSquared, myTeam);
+
+              if(friends.length == 0) {
+                r_info = r;
+                break;
+              }
+
             }
-            catch(GameActionException e) {
-              e.printStackTrace();
+
+            if(r_info != null) {
+              facing = rc.getLocation().directionTo(r_info.location);
+              unsafeLaunchMissile(facing);
             }
 
             rc.yield();
             continue;
           }
-          else {
-            int i = 0;
-            for( ; i < 8 && !rc.canMove(d_max); i++) {
-              d_max = d_max.rotateLeft();
+        }
+
+        if(rc.isCoreReady()) {
+          if(!unsafeSwarm(SIG_RALLY_A)) {
+            unsafeDiffuseRandomly();
+          }
+        }
+      }
+      else if(t == MISSILE) {
+        /**
+         * Kaboom!
+         */
+
+        if(rc.isCoreReady()) {
+
+          if(facing == null) {
+            MapLocation myLocation = rc.getLocation();
+            Direction d = Direction.NORTH;
+            try {
+              RobotInfo r_info = rc.senseRobotAtLocation(myLocation.add(d));
+              int i = 0;
+              while(i < 8 && (r_info == null || r_info.type != LAUNCHER || r_info.team != myTeam)) {
+                d = d.rotateLeft();
+                r_info = rc.senseRobotAtLocation(myLocation.add(d));
+                i++;
+              }
+              facing = (i == 8? null : d.opposite());
+
+              if(facing == null) {
+                rc.yield();
+                continue;
+              }
             }
-            if(i < 8) {
-              try {
-                rc.move(d_max);
-              }
-              catch (GameActionException e) {
-                e.printStackTrace();
-              }
+            catch (GameActionException e) {
+              e.printStackTrace();
+            }
+          }
+
+          try {
+            RobotInfo[] targets = rc.senseNearbyRobots(MISSILE.attackRadiusSquared, otherTeam);
+            RobotInfo[] friends = rc.senseNearbyRobots(MISSILE.attackRadiusSquared, myTeam);
+
+            if(targets.length > 0 && friends.length == 0) {
+              rc.explode();
             }
 
+            if(rc.isPathable(MISSILE, rc.getLocation().add(facing)) && rc.canMove(facing)) {
+              rc.move(facing);
+            }
+          }
+          catch(GameActionException e) {
+            e.printStackTrace();
           }
         }
       }
@@ -800,5 +725,284 @@ public class RobotPlayer {
       // finish this bot's turn early and save the extra byte code.
       rc.yield();
     }
+  }
+
+  private static boolean unsafeSelectTargetAndEngage(MapLocation from, int range, double cutoff) {
+    RobotInfo[] targets = rc.senseNearbyRobots(from, range, otherTeam);
+    if(targets.length == 0) return false;
+
+    RobotInfo r_info = targets[0]; // select the first target.
+    for (int i=1; i < targets.length; i++) { // Loop through all enemy units
+      RobotInfo r = targets[i];
+      if (r.type == TOWER) { // If the target is a tower, cause a cutoff.
+        r_info = r; // return this target.
+        break;
+      }
+      if (r.health < r_info.health) { // If the new target is less healthy -- update it.
+        if (r.health <= cutoff) {
+          r_info = r; // If the health is "low enough" -- cutoff.
+          break;
+        }
+        r_info = r; // Update the target info variable.
+      }
+    }
+    try {
+      rc.attackLocation(r_info.location); // Attack it!
+      return true;
+    }
+    catch (GameActionException e) {
+      e.printStackTrace();
+    }
+    return false;
+  }
+
+  private static Direction getValidSpawnDirection(MapLocation from, RobotType robot) {
+    Direction d = from.directionTo(enemyHQ);
+    for(int i=0; i < 8; i++) {
+      if(rc.canSpawn(d, robot)) {
+        return d;
+      }
+      d = d.rotateLeft();
+    }
+    return null;
+  }
+
+  private static Direction getValidBuildDirection(MapLocation from, RobotType robot) {
+    Direction d = from.directionTo(enemyHQ);
+    for(int i=0; i < 8; i++) {
+      if (rc.canBuild(d, robot)) {
+        return d;
+      }
+      d = d.rotateLeft();
+    }
+    return null;
+  }
+
+  private static boolean unsafeBuild(RobotType robot, final int rate) {
+    if(rate == RATE_HALT) return false;
+    double cutoff = robot.oreCost * (RATE_IMMEDIATE - rate + 1);
+    if(rc.getTeamOre() >= cutoff) {
+      Direction d = getValidBuildDirection(rc.getLocation(), robot);
+      if (d != null) {
+        try {
+          rc.build(d, robot);
+          return true;
+        }
+        catch(GameActionException e) {
+          e.printStackTrace();
+        }
+      }
+    }
+    return false;
+  }
+
+  private static boolean unsafeSpawn(RobotType robot, final int rate) {
+    if(rate == RATE_HALT) return false;
+    double cutoff = robot.oreCost * (RATE_IMMEDIATE - rate + 1);
+    if(rc.getTeamOre() >= cutoff) {
+      Direction d = getValidSpawnDirection(rc.getLocation(), robot);
+      if(d != null) {
+        try {
+          rc.spawn(d, robot);
+          return true;
+        }
+        catch(GameActionException e) {
+          e.printStackTrace();
+        }
+      }
+    }
+    return false;
+  }
+
+  private static void transferSupply() {
+    RobotInfo[] targets = rc.senseNearbyRobots(GameConstants.SUPPLY_TRANSFER_RADIUS_SQUARED, myTeam);
+    if(targets.length == 0) return;
+    double transferAmount = 0;
+    double mySupply = rc.getSupplyLevel();
+    double minSupply = mySupply;
+    if(mySupply < SUPPLY_TRANSFER_CUTOFF) return;
+    RobotInfo r_info = null;
+    for(RobotInfo r : targets) {
+      if(r.supplyLevel < minSupply) {
+        transferAmount = (mySupply - r.supplyLevel) / 2;
+        if(transferAmount >= SUPPLY_TRANSFER_QUANTUM) {
+          r_info = r;
+          break;
+        }
+        minSupply = r.supplyLevel;
+      }
+    }
+    if(r_info != null) {
+      try {
+        rc.transferSupplies((int) transferAmount, r_info.location);
+      }
+      catch (GameActionException e) {
+        e.printStackTrace();
+      }
+    }
+  }
+
+  private static boolean unsafeDiffuseRandomly() {
+    Direction d = directions[rand.nextInt(8)];
+    if(rc.canMove(d)) {
+      try {
+        rc.move(d);
+        return true;
+      } catch (GameActionException e) {
+        e.printStackTrace();
+      }
+    }
+    return false;
+  }
+
+  private static boolean unsafeMine(double cutoff) {
+    if(rc.senseOre(rc.getLocation()) >= cutoff) {
+      try {
+        rc.mine();
+        return true;
+      }
+      catch (GameActionException e) {
+        e.printStackTrace();
+      }
+    }
+    return false;
+  }
+
+  private static boolean chance(double percent) {
+    return rand.nextInt(10000) < 10000*percent;
+  }
+
+  private static int safeReadBroadcast(int signal) {
+    try {
+      return rc.readBroadcast(signal);
+    }
+    catch(GameActionException e) {
+      e.printStackTrace();
+    }
+    return 0;
+  }
+
+  private static void safeBroadcast(int signal, int value) {
+    try {
+      rc.broadcast(signal, value);
+    }
+    catch(GameActionException e) {
+      e.printStackTrace();
+    }
+  }
+
+  private static void safeBroadcastRallyPoints() {
+
+    MapLocation otherTower = myTowers[0];
+    MapLocation remoteTower = myTowers[0];
+    MapLocation nearbyTower = myTowers[0];
+    double maxDistance = Double.MIN_VALUE;
+    double minDistance = Double.MAX_VALUE;
+
+    for(MapLocation tower : myTowers) {
+      double distance = tower.distanceSquaredTo(enemyHQ);
+      if(distance < maxDistance) {
+        nearbyTower = tower;
+        maxDistance = distance;
+      }
+      else if(distance < minDistance) {
+        otherTower = remoteTower;
+        remoteTower = tower;
+        minDistance = distance;
+      }
+    }
+
+    safeBroadcastMapLocation(SIG_RALLY_A, remoteTower);
+    safeBroadcastMapLocation(SIG_RALLY_B, otherTower);
+    safeBroadcastMapLocation(SIG_RALLY_C, nearbyTower);
+    safeBroadcast(SIG_SWARM, SWARM_RALLY);
+  }
+
+  private static void unsafeLaunchMissile(Direction d) {
+    if(rc.getMissileCount() <= 0) return;
+    if(d == null) return;
+    try {
+      if(rc.canLaunch(d)) {
+        rc.launchMissile(d);
+      }
+    }
+    catch (GameActionException e) {
+      e.printStackTrace();
+    }
+  }
+
+  private static Direction[] getDirectionsTo(MapLocation loc) {
+    if(loc == null) return null;
+    Direction d = rc.getLocation().directionTo(loc);
+    return new Direction[] {
+      d, d.rotateLeft(), d.rotateRight(),
+      d.rotateLeft().rotateLeft(),
+      d.rotateRight().rotateRight()
+    };
+  }
+
+  private static void safeBroadcastMapLocation(int signal, MapLocation loc) {
+
+    try {
+      rc.broadcast(signal, loc.x);
+      rc.broadcast(signal+1, loc.y);
+    }
+    catch (GameActionException e) {
+      e.printStackTrace();
+    }
+  }
+
+  private static MapLocation safeReadBroadcastMapLocation(int signal) {
+
+    int x = 0, y = 0;
+    MapLocation loc = null;
+
+    try {
+      x = rc.readBroadcast(signal);
+      y = rc.readBroadcast(signal+1);
+
+      loc = new MapLocation(x,y);
+    }
+    catch (GameActionException e) {
+      e.printStackTrace();
+    }
+
+    return loc;
+  }
+
+  private static boolean unsafeSwarm(int signal) {
+    int swarm = safeReadBroadcast(SIG_SWARM);
+    if(swarm == SWARM_DISABLED) return false;
+    if(swarm == SWARM_RALLY) {
+      MapLocation rallyPoint = safeReadBroadcastMapLocation(signal);
+      if(rallyPoint == null) return false;
+      Direction[] ds = getDirectionsTo(rallyPoint);
+      for(Direction d : ds) {
+        if(rc.canMove(d)) {
+          try {
+            rc.move(d);
+            return true;
+          }
+          catch (GameActionException e) {
+            e.printStackTrace();
+          }
+        }
+      }
+    }
+    else if(swarm == SWARM_RUSH) {
+      Direction[] ds = getDirectionsTo(enemyHQ);
+      for(Direction d : ds) {
+        if(rc.canMove(d)) {
+          try {
+            rc.move(d);
+            return true;
+          }
+          catch (GameActionException e) {
+            e.printStackTrace();
+          }
+        }
+      }
+    }
+    return false;
   }
 }
