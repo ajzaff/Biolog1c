@@ -1,12 +1,11 @@
 Biolog1c
 ========
 
-`Biolog1c' is my submission to the 2015 `Battlecode' competition run by MIT.
+Biolog1c is my submission to the 2015 `Battlecode' competition run by MIT.
 I've decided to release its source for all to review, modify, and play with.
 I only ask that you please not use the source, or portions of the source
 as your team's submission to this year's Battlecode competition.
-You may reach me by email: alan.z@cox.net.
-If I don't know you please put `Cold contact' as your subject line.
+You may reach me by email: alan.z@cox.net. If I don't know you please put `Cold contact' as your subject line.
 ---------------------------------------------------------------------------
 Copyright (C) 2015 Alan J. Zaffetti
 This program is free software; you can redistribute it and/or
