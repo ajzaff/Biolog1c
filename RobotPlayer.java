@@ -775,6 +775,12 @@ public class RobotPlayer {
   }
 
   /**
+   * A customized supply transfer procedure for the HQ.
+   * The HQ requires special privileges with donating its supply,
+   * namely, there is no requirement that
+   */
+
+  /**
    * A pretty generic method which shares supply between nearby bots.
    * It should also post a message when a non-supply duty bot is low on supply.
    *  !! This method is SAFE to use without any checks. !!
@@ -782,67 +788,71 @@ public class RobotPlayer {
    */
   private static void safeTransferSupply() {
     try {
-      RobotInfo[] targets = rc.senseNearbyRobots(GameConstants.SUPPLY_TRANSFER_RADIUS_SQUARED, myTeam);
-      if(targets.length == 0) return;
-      MapLocation myLocation = rc.getLocation();
-      double transferAmount = 0;
-      double mySupply = rc.getSupplyLevel();
-      double minSupply = mySupply;
+      try {
+        RobotInfo[] targets = rc.senseNearbyRobots(GameConstants.SUPPLY_TRANSFER_RADIUS_SQUARED, myTeam);
+        if(targets.length == 0) return;
+        MapLocation myLocation = rc.getLocation();
+        double transferAmount = 0;
+        double mySupply = rc.getSupplyLevel();
+        double minSupply = mySupply;
 
-      // Low supply messaging.
-      if(mySupply <= RESUPPLY_CUTOFF) {
-        int signal = SIG_RESUPPLY;
-        double minDistance = Double.MAX_VALUE;
-        int offset = 0;
-        for(int i=0; i < RESUPPLY_CHANNELS; i += 2) {
-          if(rc.readBroadcast(signal+i) == 0) {
-            offset = i;
+        // Low supply messaging
+        if(mySupply <= RESUPPLY_CUTOFF) {
+          int signal = SIG_RESUPPLY;
+          double minDistance = Double.MAX_VALUE;
+          int offset = 0;
+          for(int i=0; i < RESUPPLY_CHANNELS; i += 2) {
+            if(rc.readBroadcast(signal+i) == 0) {
+              offset = i;
+              break;
+            }
+            MapLocation loc = safeReadBroadcastMapLocation(signal+i);
+            double dist = myLocation.distanceSquaredTo(loc);
+            if(dist < GameConstants.SUPPLY_TRANSFER_RADIUS_SQUARED) {
+              return;
+            }
+            if(dist < minDistance) {
+              minDistance = dist;
+              offset = i;
+            }
+          }
+          safeBroadcastMapLocation(signal+offset, rc.getLocation());
+          return;
+        }
+
+        // Transfer of supplies.
+        RobotInfo r_info = null;
+        for(RobotInfo r : targets) {
+
+          // Structures are ineligible to receive supply.
+          if(r.type == HQ || r.type == TOWER || r.type == SUPPLYDEPOT || r.type == TECHNOLOGYINSTITUTE || r.type == TRAININGFIELD || r.type == BARRACKS ||
+            r.type == TANKFACTORY || r.type == HELIPAD || r.type == AEROSPACELAB || r.type == HANDWASHSTATION || r.type == MINERFACTORY)
+            continue;
+          if(rc.getType() == HQ && r.type == DRONE) {
+            r_info = r;
+            transferAmount = mySupply / 2;
             break;
           }
-          MapLocation loc = safeReadBroadcastMapLocation(signal+i);
-          double dist = myLocation.distanceSquaredTo(loc);
-          if(dist < GameConstants.SUPPLY_TRANSFER_RADIUS_SQUARED) {
-            return;
-          }
-          if(dist < minDistance) {
-            minDistance = dist;
-            offset = i;
-          }
-        }
-        safeBroadcastMapLocation(signal+offset, rc.getLocation());
-        return;
-      }
-
-      // Transfer of supplies.
-      RobotInfo r_info = null;
-      for(RobotInfo r : targets) {
-
-        // Structures are ineligible to receive supply.
-        if(r.type == HQ || r.type == TOWER || r.type == SUPPLYDEPOT || r.type == TECHNOLOGYINSTITUTE || r.type == TRAININGFIELD || r.type == BARRACKS ||
-          r.type == TANKFACTORY || r.type == HELIPAD || r.type == AEROSPACELAB || r.type == HANDWASHSTATION || r.type == MINERFACTORY)
-          continue;
-        if(rc.getType() == HQ && r.type == DRONE) {
-          r_info = r;
-          transferAmount = mySupply / 2;
-          break;
-        }
-        if(r.supplyLevel < minSupply) {
-          minSupply = r.supplyLevel;
-          r_info = r;
-          transferAmount = (mySupply - minSupply) / 2;
-          if(rc.getType() == HQ && minSupply < RESUPPLY_CUTOFF) {
-            transferAmount = Math.min(RESUPPLY_CUTOFF - minSupply, transferAmount);
-          }
-          if(transferAmount >= SUPPLY_TRANSFER_CUTOFF) {
-            break;
+          if(r.supplyLevel < minSupply) {
+            minSupply = r.supplyLevel;
+            r_info = r;
+            transferAmount = (mySupply - minSupply) / 2;
+            if(rc.getType() == HQ && minSupply < RESUPPLY_CUTOFF) {
+              transferAmount = Math.min(RESUPPLY_CUTOFF - minSupply, transferAmount);
+            }
+            if(transferAmount >= SUPPLY_TRANSFER_CUTOFF) {
+              break;
+            }
           }
         }
+        if(r_info != null) {
+          rc.transferSupplies((int) transferAmount, r_info.location);
+        }
       }
-      if(r_info != null) {
-        rc.transferSupplies((int) transferAmount, r_info.location);
+      catch (GameActionException e) {
+        e.printStackTrace();
       }
-    }
-    catch (GameActionException e) {
+    } catch (Exception e) {
       e.printStackTrace();
     }
   }
