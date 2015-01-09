@@ -67,17 +67,7 @@ public class RobotPlayer {
    * The minimum amount of ore on a given tile for
    * a beaver to justify trying to mine it.
    */
-  private static final double MINER_MINING_CUTOFF = 20;
-
-  /**
-   * The minimum supply to consider transferring some.
-   */
-  private static final double SUPPLY_TRANSFER_CUTOFF = 1000;
-
-  /**
-   * The minimum supply worth transferring.
-   */
-  private static final double SUPPLY_TRANSFER_QUANTUM = 500;
+  private static final double MINER_MINING_CUTOFF = 1;
 
   /**
    * The beaver spawn rate signal channel.
@@ -150,91 +140,49 @@ public class RobotPlayer {
   private static final int SIG_TANK_RATE = 13;
 
   /**
-   * Units of this type will not be constructed -- the default initial state.
-   */
-  private static final int RATE_HALT = 0;
-
-  /**
-   * Units of this type are constructed very slowly.
-   */
-  private static final int RATE_MINIMAL = 1;
-
-  /**
-   * Units of this type are constructed slower than normal.
-   */
-  private static final int RATE_SLOW = 2;
-
-  /**
-   * Units of this type are constructed normally.
-   */
-  private static final int RATE_NORMAL = 3;
-
-  /**
-   * Units of this type are constructed rapidly.
-   */
-  private static final int RATE_RAPID = 4;
-
-  /**
-   * Units of this type are constructed immediately.
-   */
-  private static final int RATE_IMMEDIATE = 5;
-
-  /**
-   * The swarm signal
+   * Signal channel used to general unit micro.
    */
   private static final int SIG_SWARM = 14;
 
   /**
-   * All units behave normally.
+   * Rally around the HQ.
    */
-  private static final int SWARM_DISABLED = 0;
+  private static final int SWARM_NEAR_HQ = 0x1;
 
   /**
-   * All units observe their respective rally points
+   * Rally around the middle of the map.
    */
-  private static final int SWARM_RALLY = 1;
+  private static final int SWARM_NEAR_MID = 0x2;
 
   /**
-   * All units rush the HQ.
+   * Signal channel used for aggressive unit micro.
    */
-  private static final int SWARM_RUSH = 2;
+  private static final int SIG_PUSH = 15;
 
   /**
-   * The channel for soldier units observing a rally.
+   * Push toward near the enemy's HQ.
    */
-  private static final int SIG_RALLY_A = 15;
+  private static final int PUSH_NEAR_HQ = 0x1;
 
   /**
-   * The channel for basher units observing a rally.
+   * Signal space allocated to resupply map locations.
    */
-  private static final int SIG_RALLY_B = 17;
+  private static final int SIG_RESUPPLY = 16;
 
   /**
-   * The channel for basher units observing a rally.
+   * The resupply size (actual size, i.e. number of x+y components).
    */
-  private static final int SIG_RALLY_C = 19;
+  private static final int RESUPPLY_CHANNELS = 20;
 
   /**
-   * The effective starting round for each "phase" of the game starting from phase 0.
+   * The cutoff for sending a resupply signal.
    */
-  private static final int[] PHASES = new int[] {
-    0,   /* phase 0: spawn a beaver and rush barracks. */
-    30,  /* phase 1: build a few soldiers & bashers, and a few beavers. */
-    80,  /* phase 2: halt all unit production to build a helipad. */
-    130,  /* phase 3: spawn a few drones and save up. */
-    220, /* phase 4: produce a miner factory, supply depots, and a miner. */
-    240, /* phase 5: calculate rally points for all units, spawn more miners. */
-    300, /* phase 6: purchase rally point barracks/helipad, depots at HQ. */
-    400, /* phase 7: construct the aerospace lab. */
-    450, /* phase 8: build launchers and target towers -- from here on out expect continuous missile attacks. */
-    720, /* phase 9: augment soldiers, bashers, and drones, at rally points. */
-    900, /* phase 10: build more depots, handwash station. */
-    1000,/* phase 11: invest in tank factory and more miners. */
-    1200,/* phase 12: spam and rally tanks. */
-    1400,/* phase 13: augment drones at rally point. */
-    1500,/* phase 14: augment bashers & soldiers. */
-    1600,/* phase 15: rush the HQ. */
-  };
+  private static final int RESUPPLY_CUTOFF = 100;
+
+  /**
+   * The minimum supply needed to cause a cutoff in supply transfer search.
+   */
+  private static final double SUPPLY_TRANSFER_CUTOFF = 500;
 
   /**
    * A static copy of the array of directional constants.
@@ -267,6 +215,13 @@ public class RobotPlayer {
   private static MapLocation enemyHQ;
 
   /**
+   * The enemy HQ rush location.
+   * It's a position a few blocks off the actual
+   * HQ to prevent clustering of launchers.
+   */
+  private static MapLocation rushHQ;
+
+  /**
    * The locations of enemy towers.
    */
   private static MapLocation[] enemyTowers;
@@ -275,6 +230,11 @@ public class RobotPlayer {
    * The locations of my towers.
    */
   private static MapLocation[] myTowers;
+
+  /**
+   * The space between both teams' HQs
+   */
+  private static MapLocation mid;
 
   /**
    * A pseudo-random number generator instance.
@@ -293,7 +253,9 @@ public class RobotPlayer {
     myHQ = rc.senseHQLocation();
     myTowers = rc.senseTowerLocations();
     enemyHQ = rc.senseEnemyHQLocation();
+    rushHQ = enemyHQ.add(enemyHQ.directionTo(myHQ), LAUNCHER.attackRadiusSquared-1);
     enemyTowers = rc.senseEnemyTowerLocations();
+    mid = new MapLocation((myHQ.x+enemyHQ.x)/2, (myHQ.y+enemyHQ.y)/2);
 
     Direction facing = null;
 
@@ -301,10 +263,12 @@ public class RobotPlayer {
      * The method is encapsulated in a forever-loop.
      * It should run for as long as the match running.
      */
+    // TODO: keep an ArrayList of dependency expectations. (see DependencyProgress). If one hasn't been met, and it should be, we KNOW its been destroyed and we can rebuild.
     while(true) {
 
       // Get the type of the active robot.
       RobotType t = rc.getType();
+
 
       if(t == HQ) {
         /*
@@ -319,88 +283,64 @@ public class RobotPlayer {
          * This routine seeks out the best such target to hit, if any.
          */
 
-        rc.setIndicatorString(0, ""+rc.hasSpawnRequirements(LAUNCHER));
-
-        transferSupply(); // sharing is caring.
+        safeTransferSupply(); // sharing is caring.
 
         int round = Clock.getRoundNum();
-        if(round == PHASES[15]) {
-          rc.setIndicatorString(0, "Phase 15");
-          safeBroadcast(SIG_SWARM, SWARM_RUSH);
-        }
-        else if(round == PHASES[14]) {
-          rc.setIndicatorString(0, "Phase 14");
-          safeBroadcast(SIG_LAUNCHER_RATE, RATE_IMMEDIATE);
-        }
-        else if(round == PHASES[13]) {
-          rc.setIndicatorString(0, "Phase 13");
-          safeBroadcast(SIG_LAUNCHER_RATE, RATE_IMMEDIATE);
-        }
-        else if(round == PHASES[12]) {
-          rc.setIndicatorString(0, "Phase 12");
-          safeBroadcast(SIG_TANK_RATE, RATE_HALT);
-          safeBroadcast(SIG_LAUNCHER_RATE, RATE_IMMEDIATE);
-        }
-        else if(round == PHASES[11]) {
-          rc.setIndicatorString(0, "Phase 11");
-          safeBroadcast(SIG_TANK_FACTORY_RATE, RATE_HALT);
-          safeBroadcast(SIG_TANK_RATE, RATE_IMMEDIATE);
-        }
-        else if(round == PHASES[10]) {
-          rc.setIndicatorString(0, "Phase 10");
-          safeBroadcast(SIG_LAUNCHER_RATE, RATE_HALT);
-          safeBroadcast(SIG_TANK_FACTORY_RATE, RATE_IMMEDIATE);
-        }
-        else if(round == PHASES[9]) {
+        if(round == 1500) {
           rc.setIndicatorString(0, "Phase 9");
-          safeBroadcast(SIG_LAUNCHER_RATE, RATE_IMMEDIATE);
+          safeBroadcastSetFlag(SIG_PUSH, PUSH_NEAR_HQ);
         }
-        else if(round == PHASES[8]) {
+        if(round == 1400) {
           rc.setIndicatorString(0, "Phase 8");
-          safeBroadcast(SIG_MINER_RATE, RATE_HALT);
-          safeBroadcast(SIG_LAUNCHER_RATE, RATE_IMMEDIATE);
+          safeBroadcast(SIG_DRONE_RATE, 20);
         }
-        else if(round == PHASES[7]) {
+        if(round == 1000) {
+          rc.setIndicatorString(0, "Phase 8");
+          safeBroadcast(SIG_HELIPAD_RATE, 4);
+          safeBroadcast(SIG_DRONE_RATE, 20);
+        }
+        if(round == 804) {
+          rc.setIndicatorString(0, "Phase 8");
+          safeBroadcast(SIG_LAUNCHER_RATE, 20);
+        }
+        if(round == 644) {
           rc.setIndicatorString(0, "Phase 7");
-          safeBroadcast(SIG_AERO_LAB_RATE, RATE_HALT);
-          safeBroadcast(SIG_LAUNCHER_RATE,RATE_IMMEDIATE);
+          safeBroadcast(SIG_AERO_LAB_RATE, 2);
+          safeBroadcast(SIG_DEPOT_RATE, 1);
         }
-        else if(round == PHASES[6]) {
+        else if(round == 493) {
           rc.setIndicatorString(0, "Phase 6");
-          safeBroadcast(SIG_AERO_LAB_RATE,RATE_HALT);
-          safeBroadcast(SIG_MINER_RATE, RATE_RAPID);
+          safeBroadcast(SIG_MINER_RATE, 20);
+          safeBroadcast(SIG_DRONE_RATE, 4);
+          safeBroadcast(SIG_TANK_RATE, 4);
         }
-        else if(round == PHASES[5]) {
+        else if(round == 393) {
           rc.setIndicatorString(0, "Phase 5");
-          safeBroadcast(SIG_MINER_RATE, RATE_HALT);
-          safeBroadcast(SIG_AERO_LAB_RATE,RATE_IMMEDIATE);
-          safeBroadcastRallyPoints();
+          safeBroadcast(SIG_TANK_FACTORY_RATE, 1);
+          safeBroadcast(SIG_LAUNCHER_RATE, 1);
+          safeBroadcast(SIG_DEPOT_RATE, 5);
         }
-        else if(round == PHASES[4]) {
+        else if(round == 292) {
           rc.setIndicatorString(0, "Phase 4");
-          safeBroadcast(SIG_MINER_RATE, RATE_RAPID);
+          safeBroadcast(SIG_AERO_LAB_RATE, 1);
         }
-        else if(round == PHASES[3]) {
+        else if(round == 241) {
           rc.setIndicatorString(0, "Phase 3");
-          safeBroadcast(SIG_MINE_FACTORY_RATE, RATE_HALT);
-          safeBroadcast(SIG_MINER_RATE, RATE_IMMEDIATE);
+          safeBroadcast(SIG_MINER_RATE, 3);
+          safeBroadcast(SIG_BARRACKS_RATE, 1);
         }
-        else if(round == PHASES[2]) {
+        else if(round == 143) {
           rc.setIndicatorString(0, "Phase 2");
-          safeBroadcast(SIG_DRONE_RATE, RATE_HALT);
-          safeBroadcast(SIG_HELIPAD_RATE, RATE_HALT);
-          safeBroadcast(SIG_MINE_FACTORY_RATE, RATE_IMMEDIATE);
+          safeBroadcast(SIG_MINE_FACTORY_RATE, 1);
         }
-        else if(round == PHASES[1]) {
+        else if(round == 90) {
           rc.setIndicatorString(0, "Phase 1");
-          safeBroadcast(SIG_BEAVER_RATE, RATE_HALT);
-          safeBroadcast(SIG_HELIPAD_RATE, RATE_HALT);
-          safeBroadcast(SIG_DRONE_RATE, RATE_IMMEDIATE);
+          safeBroadcast(SIG_HELIPAD_RATE, 1);
         }
-        else if(round == PHASES[0]) {
+        else if(round == 0) {
           rc.setIndicatorString(0, "Phase 0");
-          safeBroadcast(SIG_BEAVER_RATE, RATE_IMMEDIATE);
-          safeBroadcast(SIG_HELIPAD_RATE, RATE_IMMEDIATE);
+          safeBroadcast(SIG_BEAVER_RATE, 4);
+          safeBroadcastSetFlag(SIG_SWARM, SWARM_NEAR_MID);
         }
 
         if(rc.isWeaponReady() && unsafeSelectTargetAndEngage(rc.getLocation(), t.attackRadiusSquared, HQ_AUTO_ENGAGE_CUTOFF)) {
@@ -409,9 +349,7 @@ public class RobotPlayer {
         }
 
         if(rc.isCoreReady()) {
-          int beaverRate = safeReadBroadcast(SIG_BEAVER_RATE);
-
-          unsafeSpawn(BEAVER, beaverRate);
+          unsafeSpawn(BEAVER, SIG_BEAVER_RATE);
         }
       }
       else if(t == TOWER) {
@@ -430,8 +368,6 @@ public class RobotPlayer {
          * Missile targets prioritized over all others.
          */
 
-        transferSupply(); // sharing is caring.
-
         if(rc.isWeaponReady()) {
           unsafeSelectTargetAndEngage(rc.getLocation(), TOWER.attackRadiusSquared, TOWER_AUTO_ENGAGE_CUTOFF);
         }
@@ -441,10 +377,10 @@ public class RobotPlayer {
          * Bashers walk around and attack adjacent enemies automatically.
          */
 
-        transferSupply(); // sharing is caring.
+        safeTransferSupply(); // sharing is caring.
 
         if(rc.isCoreReady()) {
-          if(!unsafeSwarm(SIG_RALLY_C)) {
+          if(!unsafeSwarm(SWARM_NEAR_MID)) {
             unsafeDiffuseRandomly();
           }
         }
@@ -466,14 +402,14 @@ public class RobotPlayer {
          * Missile targets prioritized over all others.
          */
 
-        transferSupply(); // sharing is caring.
+        safeTransferSupply(); // sharing is caring.
 
         if(rc.isWeaponReady() && unsafeSelectTargetAndEngage(rc.getLocation(), SOLDIER.attackRadiusSquared, SOLDIER_AUTO_ENGAGE_CUTOFF)) {
           rc.yield();
           continue;
         }
         if(rc.isCoreReady()) {
-          if(!unsafeSwarm(SIG_RALLY_C)) {
+          if(!unsafeSwarm(SWARM_NEAR_MID)) {
             unsafeDiffuseRandomly();
           }
         }
@@ -484,32 +420,26 @@ public class RobotPlayer {
          * They also have a limited ability to mine, and attack if needed.
          */
 
-        transferSupply(); // sharing is caring.
+        safeTransferSupply(); // sharing is caring.
 
         if(rc.isWeaponReady() && unsafeSelectTargetAndEngage(rc.getLocation(), BEAVER.attackRadiusSquared, BEAVER_AUTO_ENGAGE_CUTOFF)) {
           rc.yield();
           continue;
         }
         if(rc.isCoreReady()) {
-          int barracksRate = safeReadBroadcast(SIG_BARRACKS_RATE);
-          int depotRate = safeReadBroadcast(SIG_DEPOT_RATE);
-          int mineFactoryRate = safeReadBroadcast(SIG_MINE_FACTORY_RATE);
-          int helipadRate = safeReadBroadcast(SIG_HELIPAD_RATE);
-          int aeroLabRate = safeReadBroadcast(SIG_AERO_LAB_RATE);
-          int tankFactoryRate = safeReadBroadcast(SIG_TANK_FACTORY_RATE);
-
-          if(!unsafeBuild(BARRACKS, barracksRate))
-            if(!unsafeBuild(SUPPLYDEPOT, depotRate))
-              if(!unsafeBuild(MINERFACTORY, mineFactoryRate))
-                if(!unsafeBuild(HELIPAD, helipadRate))
-                  if(!unsafeBuild(AEROSPACELAB, aeroLabRate))
-                    if(!unsafeBuild(TANKFACTORY, tankFactoryRate)) {
-                      if (chance(90) && unsafeMine(BEAVER_MINING_CUTOFF)) {
+          if(!unsafeBuild(BARRACKS, SIG_BARRACKS_RATE))
+            if(!unsafeBuild(SUPPLYDEPOT, SIG_DEPOT_RATE))
+              if(!unsafeBuild(MINERFACTORY, SIG_MINE_FACTORY_RATE))
+                if(!unsafeBuild(HELIPAD, SIG_HELIPAD_RATE))
+                  if(!unsafeBuild(AEROSPACELAB, SIG_AERO_LAB_RATE))
+                    if(!unsafeBuild(TANKFACTORY, SIG_TANK_FACTORY_RATE)) {
+                      RobotInfo[] enemies = rc.senseNearbyRobots(BEAVER.sensorRadiusSquared, otherTeam);
+                      if (enemies.length == 0 && unsafeMine(BEAVER_MINING_CUTOFF)) {
                         rc.yield();
                         continue;
                       }
 
-                      unsafeDiffuseRandomly();
+                      unsafeDiffuseSafely(enemies, null);
                     }
         }
       }
@@ -518,14 +448,9 @@ public class RobotPlayer {
          * Spawn bashers and soldiers.
          */
 
-        transferSupply(); // sharing is caring.
-
         if(rc.isCoreReady()) {
-          int soldierRate = safeReadBroadcast(SIG_SOLDIER_RATE);
-          int basherRate = safeReadBroadcast(SIG_BASHER_RATE);
-
-          if(!unsafeSpawn(SOLDIER, soldierRate)) {
-            unsafeSpawn(BASHER, basherRate);
+          if(!unsafeSpawn(SOLDIER, SIG_SOLDIER_RATE)) {
+            unsafeSpawn(BASHER, SIG_BASHER_RATE);
           }
         }
       }
@@ -534,12 +459,8 @@ public class RobotPlayer {
          * Has the sole responsibility of producing miners.
          */
 
-        transferSupply(); // sharing is caring.
-
         if(rc.isCoreReady()) {
-          int minerRate = safeReadBroadcast(SIG_MINER_RATE);
-
-          unsafeSpawn(MINER, minerRate);
+          unsafeSpawn(MINER, SIG_MINER_RATE);
         }
       }
       else if(t == MINER) {
@@ -547,11 +468,13 @@ public class RobotPlayer {
          * Responsible for mining.
          */
 
-        transferSupply(); // sharing is caring.
+        safeTransferSupply(); // sharing is caring.
 
         if(rc.isCoreReady()) {
-          if(!unsafeMine(MINER_MINING_CUTOFF)) {
-            unsafeDiffuseRandomly();
+          RobotInfo[] enemies = rc.senseNearbyRobots(MINER.sensorRadiusSquared, otherTeam);
+          if(enemies.length > 0 || !unsafeMine(MINER_MINING_CUTOFF)) {
+            Direction optimalDirection = safeOptimalOreDirection();
+            unsafeDiffuseSafely(enemies, optimalDirection);
           }
         }
       }
@@ -560,12 +483,8 @@ public class RobotPlayer {
          * Spawns drones.
          */
 
-        transferSupply(); // sharing is caring.
-
         if(rc.isCoreReady()) {
-          int droneRate = safeReadBroadcast(SIG_DRONE_RATE);
-
-          unsafeSpawn(DRONE, droneRate);
+          unsafeSpawn(DRONE, SIG_DRONE_RATE);
         }
       }
       else if(t == AEROSPACELAB) {
@@ -573,12 +492,8 @@ public class RobotPlayer {
          * Spawns launchers.
          */
 
-        transferSupply(); // sharing is caring.
-
         if(rc.isCoreReady()) {
-          int rate = safeReadBroadcast(SIG_LAUNCHER_RATE);
-
-          unsafeSpawn(LAUNCHER, rate);
+          unsafeSpawn(LAUNCHER, SIG_LAUNCHER_RATE);
         }
       }
       else if(t == TANKFACTORY) {
@@ -586,12 +501,8 @@ public class RobotPlayer {
          * Spawns launchers.
          */
 
-        transferSupply(); // sharing is caring.
-
         if(rc.isCoreReady()) {
-          int rate = safeReadBroadcast(SIG_TANK_RATE);
-
-          unsafeSpawn(TANK, rate);
+          unsafeSpawn(TANK, SIG_TANK_RATE);
         }
       }
       else if(t == TANK) {
@@ -599,14 +510,14 @@ public class RobotPlayer {
          * Tanks are powerful long-range units.
          */
 
-        transferSupply(); // sharing is caring.
+        safeTransferSupply(); // sharing is caring.
 
         if(rc.isWeaponReady() && unsafeSelectTargetAndEngage(rc.getLocation(), TANK.attackRadiusSquared, TANK.attackPower)) {
           rc.yield();
           continue;
         }
         if(rc.isCoreReady()) {
-          if(!unsafeSwarm(SIG_RALLY_A)) {
+          if(!unsafeSwarm(SWARM_NEAR_MID)) {
             unsafeDiffuseRandomly();
           }
         }
@@ -616,15 +527,14 @@ public class RobotPlayer {
          * Drones can fly over shit.
          */
 
-        transferSupply(); // sharing is caring.
-
         if(rc.isWeaponReady() && unsafeSelectTargetAndEngage(rc.getLocation(), DRONE.attackRadiusSquared, DRONE.attackPower)) {
           rc.yield();
           continue;
         }
         if(rc.isCoreReady()) {
-          if(!unsafeSwarm(SIG_RALLY_B)) {
-            unsafeDiffuseRandomly();
+          if(!unsafeRouteResupply(DRONE)) {
+            RobotInfo[] enemies = rc.senseNearbyRobots(DRONE.sensorRadiusSquared, otherTeam);
+            unsafeDiffuseSafely(enemies, null);
           }
         }
       }
@@ -633,11 +543,12 @@ public class RobotPlayer {
          * Launchers stage and launch missiles but cannot themselves attack.
          */
 
-        transferSupply(); // sharing is caring.
+        safeTransferSupply(); // sharing is caring.
+
+        RobotInfo[] targets = rc.senseNearbyRobots(LAUNCHER.sensorRadiusSquared, otherTeam);
 
         if(rc.isWeaponReady()) {
 
-          RobotInfo[] targets = rc.senseNearbyRobots(LAUNCHER.sensorRadiusSquared, otherTeam);
           RobotInfo r_info = null;
 
           if(targets.length > 0) {
@@ -668,8 +579,8 @@ public class RobotPlayer {
           }
         }
 
-        if(rc.isCoreReady()) {
-          if(!unsafeSwarm(SIG_RALLY_A)) {
+        if(rc.isCoreReady() && targets.length == 0) {
+          if(!unsafeSwarm(SWARM_NEAR_MID)) {
             unsafeDiffuseRandomly();
           }
         }
@@ -712,7 +623,7 @@ public class RobotPlayer {
               rc.explode();
             }
 
-            if(rc.isPathable(MISSILE, rc.getLocation().add(facing)) && rc.canMove(facing)) {
+            else if(rc.canMove(facing)) {
               rc.move(facing);
             }
           }
@@ -727,6 +638,18 @@ public class RobotPlayer {
     }
   }
 
+  /**
+   * Selects and engages a target within the given `range'.
+   *  !! This method is UNSAFE and requires `isWeaponReady' before using. !!
+   * @param from a valid location of my attacking robot.
+   * @param range a valid range within which to get candidate targets.
+   * @param cutoff the maximum health a target must have to consider
+   *               a full selection cutoff. When this happens, the
+   *               target's location is attacked and selection stops.
+   *               This mostly saves having to search through many targets.
+   * @return `true' if a target was attacked; `false' otherwise.
+   */
+  // TODO: replace cutoff with signal channel, or data structure containing preferences.
   private static boolean unsafeSelectTargetAndEngage(MapLocation from, int range, double cutoff) {
     RobotInfo[] targets = rc.senseNearbyRobots(from, range, otherTeam);
     if(targets.length == 0) return false;
@@ -734,6 +657,7 @@ public class RobotPlayer {
     RobotInfo r_info = targets[0]; // select the first target.
     for (int i=1; i < targets.length; i++) { // Loop through all enemy units
       RobotInfo r = targets[i];
+      if(!rc.canAttackLocation(r.location)) continue;
       if (r.type == TOWER) { // If the target is a tower, cause a cutoff.
         r_info = r; // return this target.
         break;
@@ -756,6 +680,14 @@ public class RobotPlayer {
     return false;
   }
 
+  /**
+   * Gets a valid spawn direction, or `null' from the given location for a robot.
+   * It does not actually spawn anything.
+   *  !! This method is SAFE to use without any checks. !!
+   * @param from a valid location from which to initiate the spawn.
+   * @param robot a valid robot to try to spawn.
+   * @return a valid direction or `null'.
+   */
   private static Direction getValidSpawnDirection(MapLocation from, RobotType robot) {
     Direction d = from.directionTo(enemyHQ);
     for(int i=0; i < 8; i++) {
@@ -767,6 +699,14 @@ public class RobotPlayer {
     return null;
   }
 
+  /**
+   * Gets a valid build direction, or `null' from the given location for a robot.
+   * It does not actually build anything.
+   *  !! This method is SAFE to use without any checks. !!
+   * @param from a valid location in which to initiate the build.
+   * @param robot a valid robot to try to spawn.
+   * @return a valid direction or `null'.
+   */
   private static Direction getValidBuildDirection(MapLocation from, RobotType robot) {
     Direction d = from.directionTo(enemyHQ);
     for(int i=0; i < 8; i++) {
@@ -778,70 +718,189 @@ public class RobotPlayer {
     return null;
   }
 
-  private static boolean unsafeBuild(RobotType robot, final int rate) {
-    if(rate == RATE_HALT) return false;
-    double cutoff = robot.oreCost * (RATE_IMMEDIATE - rate + 1);
-    if(rc.getTeamOre() >= cutoff) {
-      Direction d = getValidBuildDirection(rc.getLocation(), robot);
-      if (d != null) {
-        try {
+  /**
+   * Tries to build a robot of the given type in a valid build direction
+   * If ore costs are satisfied, and an order was found in the broadcasts.
+   * If built, it will signal to decrement the order count for this robot.
+   *  !! This method is UNSAFE and requires `isCoreReady' before use. !!
+   * @param robot a valid robot type to build.
+   * @param signal the channel containing the order rate for this robot.
+   * @return `true' if a robot was built; `false' otherwise.
+   */
+  private static boolean unsafeBuild(RobotType robot, final int signal) {
+    try {
+      int rate = rc.readBroadcast(signal);
+      if(rate <= 0) return false;
+      if(rc.getTeamOre() >= robot.oreCost) {
+        Direction d = getValidBuildDirection(rc.getLocation(), robot);
+        if (d != null) {
           rc.build(d, robot);
+          rc.broadcast(signal, rate-1);
           return true;
         }
-        catch(GameActionException e) {
-          e.printStackTrace();
-        }
       }
+    }
+    catch(GameActionException e) {
+      e.printStackTrace();
     }
     return false;
   }
 
-  private static boolean unsafeSpawn(RobotType robot, final int rate) {
-    if(rate == RATE_HALT) return false;
-    double cutoff = robot.oreCost * (RATE_IMMEDIATE - rate + 1);
-    if(rc.getTeamOre() >= cutoff) {
-      Direction d = getValidSpawnDirection(rc.getLocation(), robot);
-      if(d != null) {
-        try {
+  /**
+   * Tries to spawn a robot of the given type in a valid spawn direction
+   * If ore costs are satisfied, and an order was found in the broadcasts.
+   * If spawned, it will signal to decrement the order count for this robot.
+   *  !! This method is UNSAFE and requires `isCoreReady' before use. !!
+   * @param robot a valid robot type to spawn.
+   * @param signal a valid channel containing the order rate for this robot.
+   * @return `true' if a robot was spawned; `false' otherwise.
+   */
+  private static boolean unsafeSpawn(RobotType robot, final int signal) {
+    try {
+      int rate = rc.readBroadcast(signal);
+      if(rate <= 0) return false;
+      if(rc.getTeamOre() >= robot.oreCost) {
+        Direction d = getValidSpawnDirection(rc.getLocation(), robot);
+        if (d != null) {
           rc.spawn(d, robot);
+          rc.broadcast(signal, rate-1);
           return true;
         }
-        catch(GameActionException e) {
-          e.printStackTrace();
-        }
       }
+    }
+    catch(GameActionException e) {
+      e.printStackTrace();
     }
     return false;
   }
 
-  private static void transferSupply() {
-    RobotInfo[] targets = rc.senseNearbyRobots(GameConstants.SUPPLY_TRANSFER_RADIUS_SQUARED, myTeam);
-    if(targets.length == 0) return;
-    double transferAmount = 0;
-    double mySupply = rc.getSupplyLevel();
-    double minSupply = mySupply;
-    if(mySupply < SUPPLY_TRANSFER_CUTOFF) return;
-    RobotInfo r_info = null;
-    for(RobotInfo r : targets) {
-      if(r.supplyLevel < minSupply) {
-        transferAmount = (mySupply - r.supplyLevel) / 2;
-        if(transferAmount >= SUPPLY_TRANSFER_QUANTUM) {
+  /**
+   * A pretty generic method which shares supply between nearby bots.
+   * It should also post a message when a non-supply duty bot is low on supply.
+   *  !! This method is SAFE to use without any checks. !!
+   *  !! Though it may be inappropriate for some to use. !!
+   */
+  private static void safeTransferSupply() {
+    try {
+      RobotInfo[] targets = rc.senseNearbyRobots(GameConstants.SUPPLY_TRANSFER_RADIUS_SQUARED, myTeam);
+      if(targets.length == 0) return;
+      MapLocation myLocation = rc.getLocation();
+      double transferAmount = 0;
+      double mySupply = rc.getSupplyLevel();
+      double minSupply = mySupply;
+
+      // Low supply messaging.
+      if(mySupply <= RESUPPLY_CUTOFF) {
+        int signal = SIG_RESUPPLY;
+        double minDistance = Double.MAX_VALUE;
+        int offset = 0;
+        for(int i=0; i < RESUPPLY_CHANNELS; i += 2) {
+          if(rc.readBroadcast(signal+i) == 0) {
+            offset = i;
+            break;
+          }
+          MapLocation loc = safeReadBroadcastMapLocation(signal+i);
+          double dist = myLocation.distanceSquaredTo(loc);
+          if(dist < GameConstants.SUPPLY_TRANSFER_RADIUS_SQUARED) {
+            return;
+          }
+          if(dist < minDistance) {
+            minDistance = dist;
+            offset = i;
+          }
+        }
+        safeBroadcastMapLocation(signal+offset, rc.getLocation());
+        return;
+      }
+
+      // Transfer of supplies.
+      RobotInfo r_info = null;
+      for(RobotInfo r : targets) {
+
+        // Structures are ineligible to receive supply.
+        if(r.type == HQ || r.type == TOWER || r.type == SUPPLYDEPOT || r.type == TECHNOLOGYINSTITUTE || r.type == TRAININGFIELD || r.type == BARRACKS ||
+          r.type == TANKFACTORY || r.type == HELIPAD || r.type == AEROSPACELAB || r.type == HANDWASHSTATION || r.type == MINERFACTORY)
+          continue;
+        if(rc.getType() == HQ && r.type == DRONE) {
           r_info = r;
+          transferAmount = mySupply / 2;
           break;
         }
-        minSupply = r.supplyLevel;
+        if(r.supplyLevel < minSupply) {
+          minSupply = r.supplyLevel;
+          r_info = r;
+          transferAmount = (mySupply - minSupply) / 2;
+          if(rc.getType() == HQ && minSupply < RESUPPLY_CUTOFF) {
+            transferAmount = Math.min(RESUPPLY_CUTOFF - minSupply, transferAmount);
+          }
+          if(transferAmount >= SUPPLY_TRANSFER_CUTOFF) {
+            break;
+          }
+        }
       }
-    }
-    if(r_info != null) {
-      try {
+      if(r_info != null) {
         rc.transferSupplies((int) transferAmount, r_info.location);
       }
-      catch (GameActionException e) {
-        e.printStackTrace();
-      }
+    }
+    catch (GameActionException e) {
+      e.printStackTrace();
     }
   }
 
+  /**
+   * Calculates the vector sum of the directions of nearby enemies.
+   *  !! This method is SAFE to use without checks. !!
+   * @param enemies an array of nearby enemies.
+   * @return a direction representing the direction of enemies around you.
+   */
+  // TODO: consider ways to make this more customizable;
+  // TODO: make it a true vector sum; this way additional meaning is carried in the vector's magnitude.
+  private static Direction compositeEnemyDirection(RobotInfo[] enemies) {
+    if(enemies.length == 0) return Direction.NONE;
+
+    MapLocation myLocation = rc.getLocation();
+    MapLocation loc = myLocation;
+
+    for(RobotInfo r : enemies) {
+      loc = loc.add(myLocation.directionTo(r.location));
+    }
+
+    return myLocation.directionTo(loc);
+  }
+
+  /**
+   * Gets the direction of optimal ore yields.
+   * It ignores the safety of the direction, but does check `canMove'.
+   * This method only checks, and does not actually mine ore or move.
+   *  !! This method is SAFE to use without checks. !!
+   * @return an optimal mining direction; or `null'.
+   */
+  private static Direction safeOptimalOreDirection() {
+    MapLocation myLocation = rc.getLocation();
+
+    Direction best = null;
+    double ore_best = rc.senseOre(myLocation);
+
+    for(Direction d : directions) {
+      if (rc.canMove(d)) {
+        double ore = rc.senseOre(myLocation.add(d));
+        if (ore > ore_best) {
+          best = d;
+          ore_best = ore;
+        }
+      }
+    }
+
+    return best;
+  }
+
+
+  /**
+   * A really basic random move algorithm.
+   * This probably shouldn't ever be used.
+   *  !! This method is UNSAFE and requires `isCoreReady' before use.
+   * @return `true' if a move happened; `false' otherwise.
+   */
   private static boolean unsafeDiffuseRandomly() {
     Direction d = directions[rand.nextInt(8)];
     if(rc.canMove(d)) {
@@ -855,6 +914,37 @@ public class RobotPlayer {
     return false;
   }
 
+  /**
+   * An improvement upon random diffusing motion.
+   * It checks the enemy vector sum and moves in the direction opposite to that.
+   *  !! This method is UNSAFE and requires `isCoreReady' before use.
+   * @param enemies an array of nearby enemies.
+   * @return `true' if a move happened; `false' otherwise.
+   */
+  // TODO: it may be wise to add an upper threshold on magnitude to cancel the move (engagement).
+  private static boolean unsafeDiffuseSafely(RobotInfo[] enemies, Direction preferred) {
+    Direction ced = compositeEnemyDirection(enemies).opposite();
+    if(ced == Direction.NONE) ced = (preferred == null? directions[rand.nextInt(8)] : preferred);
+    Direction[] ds = getDirectionsLike( ced );
+    for(Direction d : ds) {
+      if(rc.canMove(d)) {
+        try {
+          rc.move(d);
+          return true;
+        } catch (GameActionException e) {
+          e.printStackTrace();
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Tries to mine at the given location, if there's more than `cutoff' ore.
+   *  !! This method is UNSAFE and requires `isCoreReady' before use.
+   * @param cutoff the minimum amount of ore to mine, useful for beavers.
+   * @return `true' if mining happened; `false' otherwise.
+   */
   private static boolean unsafeMine(double cutoff) {
     if(rc.senseOre(rc.getLocation()) >= cutoff) {
       try {
@@ -868,11 +958,13 @@ public class RobotPlayer {
     return false;
   }
 
-  private static boolean chance(double percent) {
-    return rand.nextInt(10000) < 10000*percent;
-  }
-
-  private static int safeReadBroadcast(int signal) {
+  /**
+   * Reads a broadcast from the given `signal' channel.
+   *  !! This method is SAFE to use without checks. !!
+   * @param signal a valid signalling channel.
+   * @return the integer value read; or `0'.
+   */
+  private static int safeReadBroadcast(final int signal) {
     try {
       return rc.readBroadcast(signal);
     }
@@ -882,7 +974,13 @@ public class RobotPlayer {
     return 0;
   }
 
-  private static void safeBroadcast(int signal, int value) {
+  /**
+   * Broadcasts the value over the given `signal' channel.
+   *  !! This method is SAFE to use without checks. !!
+   * @param signal a valid signalling channel.
+   * @param value an integer value to broadcast.
+   */
+  private static void safeBroadcast(final int signal, int value) {
     try {
       rc.broadcast(signal, value);
     }
@@ -891,33 +989,81 @@ public class RobotPlayer {
     }
   }
 
-  private static void safeBroadcastRallyPoints() {
-
-    MapLocation otherTower = myTowers[0];
-    MapLocation remoteTower = myTowers[0];
-    MapLocation nearbyTower = myTowers[0];
-    double maxDistance = Double.MIN_VALUE;
-    double minDistance = Double.MAX_VALUE;
-
-    for(MapLocation tower : myTowers) {
-      double distance = tower.distanceSquaredTo(enemyHQ);
-      if(distance < maxDistance) {
-        nearbyTower = tower;
-        maxDistance = distance;
-      }
-      else if(distance < minDistance) {
-        otherTower = remoteTower;
-        remoteTower = tower;
-        minDistance = distance;
-      }
+  /**
+   * Broadcasts a map location to the given `signal' channel index.
+   * Using the current system, map locations are broadcast pairwise
+   * And at adjacent indexes. (So the x-component is at `signal' and
+   * The y-component is at `signal'+1).
+   *  !! This method is SAFE to use without any checks. !!
+   * @param signal a valid signal channel for this map location.
+   * @param loc a valid map location.
+   */
+  private static void safeBroadcastMapLocation(final int signal, MapLocation loc) {
+    if(loc == null) return;
+    try {
+      rc.broadcast(signal, loc.x);
+      rc.broadcast(signal+1, loc.y);
     }
-
-    safeBroadcastMapLocation(SIG_RALLY_A, remoteTower);
-    safeBroadcastMapLocation(SIG_RALLY_B, otherTower);
-    safeBroadcastMapLocation(SIG_RALLY_C, nearbyTower);
-    safeBroadcast(SIG_SWARM, SWARM_RALLY);
+    catch (GameActionException e) {
+      e.printStackTrace();
+    }
   }
 
+  /**
+   * Sets the `flag' on the given `signal' channel.
+   *  !! This method is SAFE to use without any checks. !!
+   * @param signal a valid signal channel.
+   * @param flag a valid integer flag.
+   */
+  private static void safeBroadcastSetFlag(final int signal, final int flag) {
+    int value = 0;
+    try {
+      value = rc.readBroadcast(signal);
+      rc.broadcast(signal, value | flag);
+    }
+    catch (GameActionException e) {
+      e.printStackTrace();
+    }
+  }
+
+  /**
+   * Unsets the `flag' on the given `signal' channel.
+   *  !! This method is SAFE to use without any checks. !!
+   * @param signal a valid signal channel.
+   * @param flag a valid integer flag.
+   */
+  private static void safeBroadcastUnsetFlag(final int signal, final int flag) {
+    int value = 0;
+    try {
+      value = rc.readBroadcast(signal);
+      rc.broadcast(signal, value & ~flag);
+    }
+    catch (GameActionException e) {
+      e.printStackTrace();
+    }
+  }
+
+  /**
+   * Tests whether `loc' is not attackable from any of the enemies structures.
+   * @param loc a valid map location.
+   * @return `true' if `loc' is safe; `false' otherwise.
+   */
+  // TODO: add sister method `hiddenGround(boolean strict)'
+  private static boolean safeGround(MapLocation loc) {
+    if(loc.distanceSquaredTo(enemyHQ) <= HQ.attackRadiusSquared) return false;
+    for(MapLocation tower : enemyTowers) {
+      if(tower.distanceSquaredTo(loc) <= TOWER.attackRadiusSquared) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Tries to launch a missile in the given direction `d'.
+   *  !! This method is UNSAFE and requires `isWeaponReady' before use. !!
+   * @param d a launch direction.
+   */
   private static void unsafeLaunchMissile(Direction d) {
     if(rc.getMissileCount() <= 0) return;
     if(d == null) return;
@@ -931,9 +1077,27 @@ public class RobotPlayer {
     }
   }
 
+  /**
+   * A convenience method for pathing; gets all directions which
+   * make progress toward the given map location `loc'.
+   *  !! This method is SAFE to use without any checks. !!
+   * @param loc a valid map location.
+   * @return an array of valid directions; or `null'.
+   */
   private static Direction[] getDirectionsTo(MapLocation loc) {
     if(loc == null) return null;
     Direction d = rc.getLocation().directionTo(loc);
+    return getDirectionsLike(d);
+  }
+
+  /**
+   * Gets all directions "in the same pathing order" as `d'.
+   *   !! This method is SAFE to use without any checks. !!
+   * @param d a valid direction; or `Direction.NONE'.
+   * @return an array of directions "like" `d'.
+   */
+  private static Direction[] getDirectionsLike(Direction d) {
+    if(d == null) return null;
     return new Direction[] {
       d, d.rotateLeft(), d.rotateRight(),
       d.rotateLeft().rotateLeft(),
@@ -941,18 +1105,15 @@ public class RobotPlayer {
     };
   }
 
-  private static void safeBroadcastMapLocation(int signal, MapLocation loc) {
-
-    try {
-      rc.broadcast(signal, loc.x);
-      rc.broadcast(signal+1, loc.y);
-    }
-    catch (GameActionException e) {
-      e.printStackTrace();
-    }
-  }
-
-  private static MapLocation safeReadBroadcastMapLocation(int signal) {
+  /**
+   * Reads a map location from the given `signal' channel index.
+   * Using the current system, map locations are broadcast pairwise
+   * And at adjacent indexes. (So the x-component is at `signal' and
+   * The y-component is at `signal'+1).
+   * @param signal a valid signal channel to read from.
+   * @return a new map location.
+   */
+  private static MapLocation safeReadBroadcastMapLocation(final int signal) {
 
     int x = 0, y = 0;
     MapLocation loc = null;
@@ -970,39 +1131,150 @@ public class RobotPlayer {
     return loc;
   }
 
-  private static boolean unsafeSwarm(int signal) {
-    int swarm = safeReadBroadcast(SIG_SWARM);
-    if(swarm == SWARM_DISABLED) return false;
-    if(swarm == SWARM_RALLY) {
-      MapLocation rallyPoint = safeReadBroadcastMapLocation(signal);
-      if(rallyPoint == null) return false;
-      Direction[] ds = getDirectionsTo(rallyPoint);
-      for(Direction d : ds) {
-        if(rc.canMove(d)) {
-          try {
+  /**
+   * Performs the swam rally action if the `flag' is set.
+   * @param flag a rally flag on the swarm signal channel.
+   * @return `true' if the rally action was performed; `false' otherwise.
+   */
+  private static boolean unsafeSwarm(final int flag) {
+    int value = 0;
+    try {
+      value = rc.readBroadcast(SIG_SWARM) & flag;
+      if(value != 0) {
+
+        MapLocation dest = null;
+
+        if(flag == SWARM_NEAR_HQ) {
+          dest = myHQ;
+        }
+        else if(flag == SWARM_NEAR_MID) {
+          dest = mid;
+        }
+        else {
+          return false;
+        }
+
+        Direction[] ds = getDirectionsTo(dest);
+        for(Direction d : ds) {
+          if(rc.canMove(d)) {
+            rc.move(d);
+            break;
+          }
+        }
+
+        return true;
+      }
+    }
+    catch (GameActionException e) {
+      e.printStackTrace();
+    }
+    return false;
+  }
+
+  /**
+   * An algorithm for routing robots to resupply, and filling resupply orders.
+   *  !! This method is UNSAFE and requires `isCoreReady' before use. !!
+   *  @param who a valid robot type representing the donor robot to be routed.
+   *  @return `true' if the robot was moved; `false' otherwise.
+   */
+  private static boolean unsafeRouteResupply(RobotType who) {
+    try {
+
+      double mySupply = rc.getSupplyLevel();
+
+      // If not enough supply, route to HQ.
+      if(mySupply <= RESUPPLY_CUTOFF) {
+        Direction[] ds = getDirectionsTo(myHQ);
+
+        for(Direction d : ds) {
+          if(rc.canMove(d)) {
             rc.move(d);
             return true;
           }
-          catch (GameActionException e) {
-            e.printStackTrace();
+        }
+
+        return true;
+      }
+
+      MapLocation[] locations = new MapLocation[RESUPPLY_CHANNELS/2];
+
+      // Get an array of locations
+      for(int i=SIG_RESUPPLY, j=0; i < SIG_RESUPPLY + RESUPPLY_CHANNELS; i += 2, j++) {
+        if(rc.readBroadcast(i) == 0) continue;
+        locations[j] = safeReadBroadcastMapLocation(i);
+      }
+
+      MapLocation myLocation = rc.getLocation();
+      MapLocation closestSupply = null;
+      double closestDistance = Double.MAX_VALUE;
+
+      // Try to find the closest resupply order.
+      for(MapLocation loc : locations) {
+        if(loc == null) continue;
+        double dist = myLocation.distanceSquaredTo(loc);
+        if(dist < closestDistance) {
+          closestDistance = dist;
+          closestSupply = loc;
+        }
+      }
+
+      // If one is found route to it.
+      if(closestSupply != null) {
+
+        // If within resupply radius, fill the order and reset the message channels.
+        if(closestDistance < GameConstants.SUPPLY_TRANSFER_RADIUS_SQUARED) {
+          RobotInfo[] targets = rc.senseNearbyRobots(GameConstants.SUPPLY_TRANSFER_RADIUS_SQUARED, myTeam);
+
+          double health = 0;
+          RobotInfo healthiest = null;
+
+          // Just give all our supply to the healthiest eligible bot.
+          for(RobotInfo r : targets) {
+            if(r.type == TOWER || r.type == HQ || r.type == SUPPLYDEPOT || r.type == TECHNOLOGYINSTITUTE || r.type == TRAININGFIELD || r.type == BARRACKS ||
+              r.type == TANKFACTORY || r.type == HELIPAD || r.type == AEROSPACELAB || r.type == HANDWASHSTATION || r.type == MINERFACTORY)
+              continue;
+            if(r.health > health) {
+              health = r.health;
+              healthiest = r;
+            }
+          }
+
+          if(healthiest != null) {
+            rc.transferSupplies((int) (mySupply / 2), healthiest.location);
+          }
+
+          int i=SIG_RESUPPLY;
+          for(MapLocation loc : locations) {
+            if(loc == null) continue;
+            double distance = myLocation.distanceSquaredTo(loc);
+            if(distance <= who.sensorRadiusSquared) {
+              rc.broadcast(i, 0);
+            }
+            i+=2;
+          }
+
+          return false;
+        }
+
+        // Otherwise, route to the location.
+        else {
+
+          Direction[] ds = getDirectionsTo(closestSupply);
+
+          for (Direction d : ds) {
+            if (rc.canMove(d)) {
+              rc.move(d);
+              return true;
+            }
           }
         }
       }
+
     }
-    else if(swarm == SWARM_RUSH) {
-      Direction[] ds = getDirectionsTo(enemyHQ);
-      for(Direction d : ds) {
-        if(rc.canMove(d)) {
-          try {
-            rc.move(d);
-            return true;
-          }
-          catch (GameActionException e) {
-            e.printStackTrace();
-          }
-        }
-      }
+    catch (GameActionException e) {
+      e.printStackTrace();
     }
+
     return false;
   }
 }
