@@ -17,15 +17,16 @@ package team309;
 import battlecode.common.MapLocation;
 import battlecode.common.RobotController;
 import battlecode.common.RobotType;
-import team309.sentry.HQ;
-import team309.sentry.Tower;
-import team309.structures.*;
-import team309.units.*;
+import team309.robots.Missile;
+import team309.robots.structures.HQ;
+import team309.robots.structures.Tower;
+import team309.robots.structures.*;
+import team309.robots.units.*;
 
 /**
  * Provides a method `run' which creates a new robot instance and runs it.
  */
-public class RobotPlayer {
+public final class RobotPlayer {
 
   /**
    * The enemy HQ location.
@@ -65,6 +66,7 @@ public class RobotPlayer {
 
     if(t == RobotType.HQ) new HQ().run();
     else if(t == RobotType.TOWER) new Tower().run();
+    else if(t == RobotType.SUPPLYDEPOT) new SupplyDepot().run();
     else if(t == RobotType.BASHER) new Basher().run();
     else if(t == RobotType.SOLDIER) new Soldier().run();
     else if(t == RobotType.BEAVER) new Beaver().run();

@@ -12,16 +12,12 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 */
 
-package team309.units;
+package team309.robots.units;
 
-public class Beaver extends BaseUnit {
+public class Soldier extends BaseUnit {
 
   @Override
   public void act() {
-    /*
-     * Beavers are the only units capable of building structures.
-     * They also have a limited ability to mine, and attack if needed.
-     */
 
   }
 }

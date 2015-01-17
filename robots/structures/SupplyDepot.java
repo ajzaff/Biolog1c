@@ -12,8 +12,12 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 */
 
-package team309.structures;
+package team309.robots.structures;
 
-public interface Spawner {
+public class SupplyDepot extends BaseStructure {
 
+  @Override
+  public void act() {
+
+  }
 }

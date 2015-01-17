@@ -12,14 +12,12 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 */
 
-package team309.structures;
+package team309.robots.units;
 
-public class TankFactory extends BaseSpawner {
+public class Computer extends BaseUnit {
 
   @Override
   public void act() {
-    /**
-     * Spawns launchers.
-     */
+
   }
 }

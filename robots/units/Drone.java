@@ -12,11 +12,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 */
 
-package team309.sentry;
+package team309.robots.units;
 
-import team309.Attacker;
-import team309.BaseBot;
+public class Drone extends BaseUnit {
 
-public abstract class BaseSentry extends BaseBot implements Attacker {
-
+  @Override
+  public void act() {
+    /**
+     * Drones can fly over shit.
+     */
+  }
 }

@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 package team309;
 
-public class Swarm {
+public final class Swarm {
   /**
    * Rally around our HQ.
    */

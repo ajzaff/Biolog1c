@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2015  Alan J. Zaffetti
+?Copyright (C) 2015  Alan J. Zaffetti
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -12,14 +12,12 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 */
 
-package team309.structures;
+package team309.robots.units;
 
-public class TrainingField extends BaseSpawner {
+public class Commander extends BaseUnit {
 
   @Override
   public void act() {
-    /**
-     * Builds the commander.
-     */
+
   }
 }

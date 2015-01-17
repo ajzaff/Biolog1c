@@ -12,23 +12,12 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 */
 
-package team309.sentry;
+package team309.robots.units;
 
-public class HQ extends BaseSentry {
 
-  @Override
-  public void act() {
-    /*
-     * The `HQ' can spawn beavers, and attack things, if needed.
-     * I also use it as a central message service.
-     */
-    /**
-     * Although we do not really want it to come down to this,
-     * the HQ is capable of doing large amounts of damage
-     * to targets.
-     *
-     * This routine seeks out the best such target to hit, if any.
-     */
+public class Launcher extends BaseUnit {
+
+  @Override public void act() {
 
   }
 }

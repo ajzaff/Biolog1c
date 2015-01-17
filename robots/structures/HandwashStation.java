@@ -12,9 +12,9 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 */
 
-package team309.units;
+package team309.robots.structures;
 
-public class Computer extends BaseUnit {
+public class HandwashStation extends BaseStructure {
 
   @Override
   public void act() {

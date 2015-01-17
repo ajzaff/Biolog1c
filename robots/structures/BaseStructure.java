@@ -12,12 +12,10 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 */
 
-package team309.structures;
+package team309.robots.structures;
 
-public class SupplyDepot extends BaseStructure {
+import team309.robots.BaseBot;
 
-  @Override
-  public void act() {
+public abstract class BaseStructure extends BaseBot {
 
-  }
 }

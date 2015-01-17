@@ -12,14 +12,17 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 */
 
-package team309.structures;
+package team309.robots;
 
-public class TechnologyInstitute extends BaseStructure {
+import battlecode.common.GameActionException;
+import battlecode.common.MapLocation;
 
-  @Override
-  public void act() {
-    /**
-     * Requirement for computer, training field, commander.
-     */
-  }
+public interface Attacker {
+
+  /**
+   * Attack the given map location `loc'.
+   * @param loc a valid map location to attack
+   */
+
+  boolean attack(MapLocation loc) throws GameActionException;
 }

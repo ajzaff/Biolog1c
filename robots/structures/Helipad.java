@@ -12,10 +12,15 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 */
 
-package team309.structures;
+package team309.robots.structures;
 
-import team309.BaseBot;
+/**
+ * Spawns drones.
+ */
+public class Helipad extends BaseSpawner {
 
-public abstract class BaseStructure extends BaseBot {
+  @Override
+  public void act() {
 
+  }
 }

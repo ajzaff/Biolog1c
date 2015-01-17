@@ -12,11 +12,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 */
 
-package team309.units;
+package team309.robots.structures;
 
-import team309.Attacker;
-import team309.sentry.BaseSentry;
+public class TrainingField extends BaseSpawner {
 
-public abstract class BaseUnit extends BaseSentry implements Attacker {
-
+  @Override
+  public void act() {
+    /**
+     * Builds the commander.
+     */
+  }
 }

@@ -12,15 +12,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 */
 
-package team309.units;
+package team309.robots.structures;
 
-/**
- * Created by alan on 1/11/15.
- */
-public class Commander extends BaseUnit {
+public class TechnologyInstitute extends BaseStructure {
 
   @Override
   public void act() {
-
+    /**
+     * Requirement for computer, training field, commander.
+     */
   }
 }

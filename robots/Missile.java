@@ -12,14 +12,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 */
 
-package team309.structures;
+package team309.robots;
 
-public class MinerFactory extends BaseSpawner {
+import battlecode.common.GameActionException;
+
+public class Missile extends BaseBot {
 
   @Override
-  public void act() {
-    /*
-     * Has the sole responsibility of producing miners.
-     */
+  public void act() throws GameActionException {
+
   }
 }

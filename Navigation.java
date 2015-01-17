@@ -17,10 +17,15 @@ package team309;
 import battlecode.common.Direction;
 import battlecode.common.MapLocation;
 
-import static battlecode.common.RobotType.HQ;
-import static battlecode.common.RobotType.TOWER;
+import java.util.Stack;
 
-public class Navigation {
+import static team309.RobotPlayer.rc;
+
+/**
+ * Basic navigation operations for unit movement.
+ */
+public final class Navigation {
+
   /**
    * A static copy of the array of directional constants.
    */
@@ -30,42 +35,19 @@ public class Navigation {
    * Tests if a direction is NONE or OMNI
    * @return `true' if a direction is NONE or OMNI; `false' otherwise.
    */
-  static boolean hasNoDirection(Direction d) {
-    return d == Direction.NONE || d == Direction.OMNI;
-  }
-
-  /**
-   * Returns the direction to an enemy tower in range.
-   * @return a direction to an enemy tower or NONE, OMNI
-   */
-  private static Direction compositeEnemyStructureDirection(MapLocation myLocation) {
-
-    MapLocation loc = myLocation;
-
-    if(myLocation.distanceSquaredTo(RobotPlayer.enemyHQ) < HQ.sensorRadiusSquared + 4) {
-      loc = loc.add(myLocation.directionTo(RobotPlayer.enemyHQ));
-    }
-
-    for(MapLocation tower : RobotPlayer.enemyTowers) {
-      if(myLocation.distanceSquaredTo(tower) < TOWER.sensorRadiusSquared + 4) {
-        loc = loc.add(myLocation.directionTo(tower));
-      }
-    }
-
-    return myLocation.directionTo(loc);
+  public static boolean hasNoDirection(Direction d) {
+    return d == null || d == Direction.NONE || d == Direction.OMNI;
   }
 
   /**
    * A convenience method for pathing; gets all directions which
    * make progress toward the given map location `loc'.
    *  !! This method is SAFE to use without any checks. !!
-   * @param from a valid map location.
-   * @param to a valid map location.
+   * @param target a valid map location.
    * @return an array of valid directions; or `null'.
    */
-  static Direction[] getDirectionsTo(MapLocation from, MapLocation to) {
-    if(from == null || to == null) return null;
-    Direction d = from.directionTo(to);
+  public static Direction[] getDirectionsTo(MapLocation target) {
+    Direction d = rc.getLocation().directionTo(target);
     return getDirectionsLike(d);
   }
 
@@ -75,8 +57,7 @@ public class Navigation {
    * @param d a valid direction; or `Direction.NONE'.
    * @return an array of directions "like" `d'.
    */
-  static Direction[] getDirectionsLike(Direction d) {
-    if(d == null) return null;
+  public static Direction[] getDirectionsLike(Direction d) {
     return new Direction[] {
       d, d.rotateLeft(), d.rotateRight(),
       d.rotateLeft().rotateLeft(),
@@ -84,19 +65,7 @@ public class Navigation {
     };
   }
 
-  /**
-   * Tests whether `loc' is not attackable from any of the enemies structures.
-   * @param loc a valid map location.
-   * @return `true' if `loc' is safe; `false' otherwise.
-   */
-  // TODO: add sister method `hiddenGround(boolean strict)'
-  private static boolean safeGround(MapLocation loc) {
-    if(loc.distanceSquaredTo(RobotPlayer.enemyHQ) <= HQ.attackRadiusSquared) return false;
-    for(MapLocation tower : RobotPlayer.enemyTowers) {
-      if(tower.distanceSquaredTo(loc) <= TOWER.attackRadiusSquared) {
-        return false;
-      }
-    }
-    return true;
+  public static double squareDistance(MapLocation loc1, MapLocation loc2) {
+    return (loc1.x-loc2.x)*(loc1.x-loc2.x) + (loc1.y-loc2.y)*(loc1.y-loc2.y);
   }
 }

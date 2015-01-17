@@ -12,7 +12,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 */
 
-package team309;
+package team309.robots.units;
 
-public interface Attacker {
+public class Basher extends BaseUnit {
+
+  @Override
+  public void act() {
+    /*
+     * Bashers walk around and attack adjacent enemies automatically.
+     */
+  }
 }

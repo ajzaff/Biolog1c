@@ -12,26 +12,33 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 */
 
-package team309.sentry;
+package team309.robots.structures;
 
+import battlecode.common.MapLocation;
+import team309.robots.BaseSentry;
+
+
+/**
+ * The `tower' is a powerful unit which attacks things.
+ * It has an effective attack range of 24 units^2.
+ *
+ * The goal is to find a suitable enemy robot to attack.
+ * The strategy is generally, to find the robot
+ * with the minimum remaining health and attack it.
+ *
+ * To save compute time, if a target with less than a given
+ * cutoff is found, it is selected, and target search stops.
+ */
 public class Tower extends BaseSentry {
 
   @Override
   public void act() {
-    /*
-     * The `tower' is a powerful unit which attacks things.
-     * It has an effective attack range of 24 units^2 (see TOWER_ATTACK_RANGE).
-     */
-    /*
-     * The goal is to find a suitable enemy robot to attack.
-     * The strategy is generally, to find the robot
-     * with the minimum remaining health and attack it.
-     *
-     * To save compute time, if a target with less than a given
-     * cutoff is found, it is selected, and target search stops.
-     *
-     * Missile targets prioritized over all others.
-     */
 
+
+  }
+
+  @Override
+  public boolean attack(MapLocation loc) {
+    return false;
   }
 }

@@ -12,14 +12,18 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 */
 
-package team309.structures;
+package team309.robots;
 
-public class Helipad extends BaseSpawner {
+import battlecode.common.Direction;
+import battlecode.common.GameActionException;
+import battlecode.common.RobotType;
 
-  @Override
-  public void act() {
-    /**
-     * Spawns drones.
-     */
-  }
+public interface Spawner {
+
+  /**
+   * Tries to spawn a unit in the given direction `d'.
+   * @param d a valid direction to spawn.
+   * @param unit a valid unit to spawn.
+   */
+  boolean spawn(Direction d, RobotType unit) throws GameActionException;
 }

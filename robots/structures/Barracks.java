@@ -12,9 +12,12 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 */
 
-package team309.units;
+package team309.robots.structures;
 
-public class Tank extends BaseUnit {
+/*
+ * Spawn bashers and soldiers.
+ */
+public class Barracks extends BaseSpawner {
 
   @Override
   public void act() {

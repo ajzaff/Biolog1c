@@ -12,14 +12,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 */
 
-package team309.units;
+package team309.robots.structures;
 
-public class Drone extends BaseUnit {
+public class TankFactory extends BaseSpawner {
 
   @Override
   public void act() {
     /**
-     * Drones can fly over shit.
+     * Spawns launchers.
      */
   }
 }

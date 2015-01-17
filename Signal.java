@@ -17,38 +17,79 @@ package team309;
 import battlecode.common.GameActionException;
 import battlecode.common.MapLocation;
 
-public class Signal {
+import static team309.RobotPlayer.rc;
+
+public final class Signal {
 
   /**
-   * Reads a broadcast from the given `signal' channel.
-   *  !! This method is SAFE to use without checks. !!
-   * @param signal a valid signalling channel.
-   * @return the integer value read; or `0'.
+   * The beaver spawn rate signal channel.
    */
-  static int safeReadBroadcast(final int signal) {
-    try {
-      return RobotPlayer.rc.readBroadcast(signal);
-    }
-    catch(GameActionException e) {
-      e.printStackTrace();
-    }
-    return 0;
-  }
+  public static final int SIG_BEAVER_RATE = 0;
 
   /**
-   * Broadcasts the value over the given `signal' channel.
-   *  !! This method is SAFE to use without checks. !!
-   * @param signal a valid signalling channel.
-   * @param value an integer value to broadcast.
+   * The barracks build rate signal channel.
    */
-  static void safeBroadcast(final int signal, int value) {
-    try {
-      RobotPlayer.rc.broadcast(signal, value);
-    }
-    catch(GameActionException e) {
-      e.printStackTrace();
-    }
-  }
+  public static final int SIG_BARRACKS_RATE = 1;
+
+  /**
+   * The factory rate signal channel.
+   */
+  public static final int SIG_MINER_FACTORY_RATE = 2;
+
+  /**
+   * The depot rate signal channel.
+   */
+  public static final int SIG_DEPOT_RATE = 3;
+
+  /**
+   * The soldier rate signal channel.
+   */
+  public static final int SIG_SOLDIER_RATE = 4;
+
+  /**
+   * The soldier rate signal channel.
+   */
+  public static final int SIG_BASHER_RATE = 5;
+
+  /**
+   * The miner rate signal channel.
+   */
+  public static final int SIG_MINER_RATE = 6;
+
+  /**
+   * The helipad rate signal channel.
+   */
+  public static final int SIG_HELIPAD_RATE = 7;
+
+  /**
+   * The drone rate signalling channel.
+   */
+  public static final int SIG_DRONE_RATE = 8;
+
+  /**
+   * The aerospace lab rate signalling channel.
+   */
+  public static final int SIG_AERO_LAB_RATE = 9;
+
+  /**
+   * The launcher rate signalling channel.
+   */
+  public static final int SIG_LAUNCHER_RATE = 10;
+
+  /**
+   * The launcher rate signalling channel.
+   */
+  public static final int SIG_HANDWASH_RATE = 11;
+
+  /**
+   * The tank factory rate signalling channel.
+   */
+  public static final int SIG_TANK_FACTORY_RATE = 12;
+
+  /**
+   * The tank rate signalling channel.
+   */
+  public static final int SIG_TANK_RATE = 13;
 
   /**
    * Broadcasts a map location to the given `signal' channel index.
@@ -59,15 +100,9 @@ public class Signal {
    * @param signal a valid signal channel for this map location.
    * @param loc a valid map location.
    */
-  private static void safeBroadcastMapLocation(final int signal, MapLocation loc) {
-    if(loc == null) return;
-    try {
-      RobotPlayer.rc.broadcast(signal, loc.x);
-      RobotPlayer.rc.broadcast(signal+1, loc.y);
-    }
-    catch (GameActionException e) {
-      e.printStackTrace();
-    }
+  public static void broadcastMapLocation(final int signal, MapLocation loc) throws GameActionException {
+    rc.broadcast(signal, loc.x);
+    rc.broadcast(signal+1, loc.y);
   }
 
   /**
@@ -76,15 +111,9 @@ public class Signal {
    * @param signal a valid signal channel.
    * @param flag a valid integer flag.
    */
-  static void safeBroadcastSetFlag(final int signal, final int flag) {
-    int value = 0;
-    try {
-      value = RobotPlayer.rc.readBroadcast(signal);
-      RobotPlayer.rc.broadcast(signal, value | flag);
-    }
-    catch (GameActionException e) {
-      e.printStackTrace();
-    }
+  public void broadcastSetFlag(final int signal, final int flag) throws GameActionException {
+    int value = rc.readBroadcast(signal);
+    rc.broadcast(signal, value | flag);
   }
 
   /**
@@ -93,14 +122,24 @@ public class Signal {
    * @param signal a valid signal channel.
    * @param flag a valid integer flag.
    */
-  private static void safeBroadcastUnsetFlag(final int signal, final int flag) {
-    int value = 0;
-    try {
-      value = RobotPlayer.rc.readBroadcast(signal);
-      RobotPlayer.rc.broadcast(signal, value & ~flag);
+  public static void broadcastUnsetFlag(final int signal, final int flag) throws GameActionException {
+    int value = rc.readBroadcast(signal);
+    rc.broadcast(signal, value & ~flag);
+  }
+
+  /**
+   * Update the value of a signal, if value has changed.
+   * @param signal a valid signalling channel.
+   * @param newValue the new value.
+   * @return `true' if the value was updated; `false' otherwise.
+   * @throws GameActionException
+   */
+  public static boolean broadcastUpdate(final int signal, int newValue) throws GameActionException {
+    int value = rc.readBroadcast(signal);
+    if(value != newValue) {
+      rc.broadcast(signal, newValue);
+      return true;
     }
-    catch (GameActionException e) {
-      e.printStackTrace();
-    }
+    return false;
   }
 }

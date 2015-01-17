@@ -12,12 +12,14 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 */
 
-package team309.structures;
+package team309.robots.units;
 
-public class HandwashStation extends BaseStructure {
+import battlecode.common.GameActionException;
+
+public class Tank extends BaseUnit {
 
   @Override
-  public void act() {
+  public void act() throws GameActionException {
 
   }
 }
